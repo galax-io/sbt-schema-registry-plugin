@@ -1,8 +1,8 @@
-import sbt._
+import sbt.*
 
 object Dependencies {
   private object Versions {
-    val avro         = "1.11.1"
+    val avro         = "1.11.3"
     val schReqClient = "7.3.1"
   }
 
