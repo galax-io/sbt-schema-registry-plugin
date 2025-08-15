@@ -29,4 +29,7 @@ ThisBuild / pomIncludeRepository := { _ => false }
 //  else localStaging.value
 //}
 
+ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
+sonatypeRepository                 := "https://s01.oss.sonatype.org/service/local"
+
 ThisBuild / licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
