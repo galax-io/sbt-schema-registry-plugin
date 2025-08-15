@@ -5,41 +5,64 @@ on:
     branches: ['**']
   push:
     branches: ['**']
-    tags: [v*]
+    tags: ['v*']
 
 jobs:
   test:
     name: Test Release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2.4.0
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Setup Scala
-        uses: olafurpg/setup-scala@v13
+      - name: Setup Scala & Java
+        uses: olafurpg/setup-scala@v14
         with:
           java-version: openjdk@1.17
 
-      - name: Test Release
-        run: sbt clean scalafmtCheckAll scalafmtSbtCheck compile test
+      - name: Cache SBT & Coursier
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.cache/coursier
+          key: sbt-${{ runner.os }}-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/**') }}
+          restore-keys: sbt-${{ runner.os }}-
+
+      - name: Check Formatting
+        run: sbt scalafmtCheckAll scalafmtSbtCheck
+
+      - name: Compile & Test
+        run: sbt clean compile test
 
   publish:
     name: Publish Release
     needs: [test]
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2.4.0
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Setup Scala
-        uses: olafurpg/setup-scala@v13
+      - name: Setup Scala & Java
+        uses: olafurpg/setup-scala@v14
         with:
           java-version: openjdk@1.17
+
+      - name: Cache SBT & Coursier
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.cache/coursier
+          key: sbt-${{ runner.os }}-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/**') }}
+          restore-keys: sbt-${{ runner.os }}-
 
       - name: Publish Release
         run: sbt ci-release

@@ -31,7 +31,7 @@ class Downloader(client: SchemaRegistryClient, schemaOutputDir: Path, logger: Lo
     } yield path).fold(e => logger.error(e.getMessage), p => logger.info(s"saved schema ${schemaSubject.name} to $p"))
 }
 object Downloader {
-  val avroSchemeFileExtension = "avsc"
+  private val avroSchemeFileExtension = "avsc"
 
   def apply(rootUrl: String, schemaOutputDir: Path, logger: Logger): Downloader =
     new Downloader(new CachedSchemaRegistryClient(rootUrl, 200), schemaOutputDir, logger)
