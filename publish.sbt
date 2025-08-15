@@ -11,7 +11,7 @@ ThisBuild / scmInfo              := Some(
   ),
 )
 
-ThisBuild / developers           := List(
+ThisBuild / developers := List(
   Developer(
     id = "jigarkhwar",
     name = "Ioann Akhaltsev",
@@ -21,14 +21,12 @@ ThisBuild / developers           := List(
 )
 
 // Remove all additional repository other than Maven Central from POM
-ThisBuild / pomIncludeRepository   := { _ => false }
-ThisBuild / publishTo              := {
-  val nexus = "https://s01.oss.sonatype.org/"
-  if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
-  else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+ThisBuild / pomIncludeRepository := { _ => false }
+// new setting for the Central Portal
+ThisBuild / publishTo            := {
+  val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
+  if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
+  else localStaging.value
 }
-
-ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
-sonatypeRepository                 := "https://s01.oss.sonatype.org/service/local"
 
 ThisBuild / licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
