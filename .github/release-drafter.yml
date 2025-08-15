@@ -1,8 +1,37 @@
+name-template: 'v$NEXT_PATCH_VERSION'
+tag-template: 'v$NEXT_PATCH_VERSION'
 categories:
-  - title: 'Dependency updates'
+  - title: '✨ New Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+      - 'fix'
+  - title: '📦 Dependency Updates'
     labels:
       - 'dependency'
+      - 'deps'
+  - title: '📝 Documentation'
+    labels:
+      - 'documentation'
+      - 'docs'
+  - title: '⚡ Performance Improvements'
+    labels:
+      - 'performance'
+      - 'perf'
+  - title: '🛠 Maintenance'
+    labels:
+      - 'maintenance'
+      - 'chore'
 template: |
-  ## What’s Changed
+  # Release Notes - $NEXT_PATCH_VERSION
 
+  ## Summary
   $CHANGES
+
+  ---
+  _Generated automatically by [Release Drafter](https://github.com/release-drafter/release-drafter)_
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+no-changes-template: '- No changes'
