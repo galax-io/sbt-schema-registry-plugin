@@ -6,7 +6,7 @@ import Keys.*
 object SchemaDownloaderPlugin extends AutoPlugin {
   override def trigger = allRequirements
 
-  private object autoImport {
+  object autoImport {
     val schemaRegistryDownload = taskKey[Unit]("Download schemas")
 
     val schemaRegistryUrl          = settingKey[String]("Url to schema registry")
