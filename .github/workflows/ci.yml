@@ -2,10 +2,10 @@ name: Continuous Integration
 
 on:
   pull_request:
-    branches: ['**']
+    branches: [ '**' ]
   push:
-    branches: ['**']
-    tags: ['v*']
+    branches: [ '**' ]
+    tags: [ 'v*' ]
 
 jobs:
   test:
@@ -37,17 +37,58 @@ jobs:
 
       - name: Compile & Test
         run: sbt clean compile test
-        
-      - name: Prepare release notes
-        uses: release-drafter/release-drafter@v6
+
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-24.04
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
         with:
-          config-name: release-drafter.yml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fromTag: v${{ github.event.ref }}
+          toTag: v${{ github.event.ref }}
+          configurationJson: |
+            {
+              "template": "# Changelog\n\n{{CHANGELOG}}",
+              "categories": [
+                {"title": "✨ Features", "labels": ["feat", "feature"]},
+                {"title": "🐛 Bug Fixes", "labels": ["fix", "bug"]},
+                {"title": "📝 Documentation", "labels": ["docs"]},
+                {"title": "⚡ Performance Improvements", "labels": ["perf"]},
+                {"title": "♻️ Refactoring", "labels": ["refactor"]},
+                {"title": "🧪 Tests", "labels": ["test"]},
+                {"title": "🧹 Chores", "labels": ["chore"]},
+                {"title": "📦 Dependencies", "labels": ["dependency"]},
+                {"title": "🚨 Breaking Changes", "labels": ["breaking"]},
+                {"title": "🤖 CI / Build", "labels": ["ci"]}
+              ],
+              "label_extractor": [
+                {
+                  "pattern": "^(build|chore|ci|docs|feat|feature|fix|bug|perf|refactor|revert|style|test|dependency|breaking)(\\([\\w\\-\\.]+\\))?(!)?:",
+                  "on_property": "title",
+                  "target": "$1"
+                },
+                {
+                  "pattern": "^(.*)!:.*",
+                  "on_property": "title",
+                  "target": "breaking"
+                }
+              ]
+            }
 
   publish:
     name: Publish Release
-    needs: [test]
+    needs: [ test, changelog ]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -70,7 +111,7 @@ jobs:
           key: sbt-${{ runner.os }}-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/**') }}
           restore-keys: sbt-${{ runner.os }}-
 
-      - name: Publish Release
+      - name: Publish to Maven Central
         run: sbt ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
@@ -78,10 +119,9 @@ jobs:
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
 
-      - name: Publish release notes
-        uses: release-drafter/release-drafter@v6
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          config-name: release-drafter.yml
-          publish: true
+          body: ${{ steps.changelog.outputs.changelog }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
