@@ -38,6 +38,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: sbt
+      - uses: sbt/setup-sbt@v1
 
       - name: Cache Coursier
         uses: coursier/cache-action@v6
