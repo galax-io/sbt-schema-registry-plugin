@@ -98,9 +98,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          LAST_TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "")
+
+          git fetch --tags --force --prune
+
+          LAST_TAG=$(git describe --tags --abbrev=0 --match "v*" --first-parent 2>/dev/null || echo "")
           echo "last_tag=${LAST_TAG}" >> "$GITHUB_OUTPUT"
           RANGE="${LAST_TAG:+${LAST_TAG}..HEAD}"
+
           BUMP="patch"
           COMMITS=$(git log --pretty=format:%s ${RANGE})
           if echo "$COMMITS" | grep -Eiq 'BREAKING CHANGE|!:'; then
@@ -108,22 +112,46 @@ jobs:
           elif echo "$COMMITS" | grep -Eiq '^feat(\(.+\))?:'; then
             BUMP="minor"
           fi
-          if [ -z "$LAST_TAG" ]; then MAJOR=0; MINOR=0; PATCH=0
-          else IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#v}"
+
+          if [ -z "$LAST_TAG" ]; then
+            MAJOR=0; MINOR=0; PATCH=0
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#v}"
           fi
+
           case "$BUMP" in
             major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
             minor) MINOR=$((MINOR+1)); PATCH=0 ;;
             patch) PATCH=$((PATCH+1)) ;;
           esac
+
           NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+
+          if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
+            TAG_COMMIT=$(git rev-list -n 1 "${NEXT_TAG}")
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [ "${TAG_COMMIT}" = "${HEAD_COMMIT}" ]; then
+              SKIP_TAG_CREATE=1
+            else
+              while git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; do
+                IFS='.' read -r MAJOR MINOR PATCH <<< "${NEXT_TAG#v}"
+                PATCH=$((PATCH+1))
+                NEXT_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+              done
+            fi
+          fi
+
           echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
           echo "tag=$NEXT_TAG" >> "$GITHUB_OUTPUT"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-          git tag -a "$NEXT_TAG" -m "Release $NEXT_TAG"
-          git push origin "$NEXT_TAG"
+
+          if [ "${SKIP_TAG_CREATE:-0}" != "1" ]; then
+            git tag -a "$NEXT_TAG" -m "Release $NEXT_TAG"
+            git push origin "$NEXT_TAG"
+          fi
       - name: Publish to Sonatype via sbt-ci-release
         if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && steps.bump.outputs.tag)
         env:
