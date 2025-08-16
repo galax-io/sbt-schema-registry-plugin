@@ -19,7 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SBT_OPTS: -Dsbt.color=true -Dsbt.log.noformat=false -Dsbt.supershell=false -J-Xms2G -J-Xmx2G -J-Xss4M -J-XX:+UseG1GC
+  SBT_OPTS: -Dsbt.color=true -Dsbt.log.noformat=false -Dsbt.supershell=false
+  JAVA_OPTS: -Xms2G -Xmx2G -Xss4M -XX:+UseG1GC
+  JVM_OPTS: -Xms2G -Xmx2G -Xss4M -XX:+UseG1GC
   FORCE_COLOR: "1"
   TERM: xterm-256color
 
