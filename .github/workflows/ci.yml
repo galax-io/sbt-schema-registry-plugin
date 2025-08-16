@@ -8,7 +8,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
   actions: read
   checks: write
   pull-requests: write
