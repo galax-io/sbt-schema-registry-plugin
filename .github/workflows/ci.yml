@@ -190,10 +190,10 @@ jobs:
         with:
           mode: "COMMIT"
           fromTag: ${{ github.ref == 'refs/heads/main' && steps.bump.outputs.last_tag || '' }}
-          toTag: ${{ github.ref == 'refs/heads/main' && steps.bump.outputs.tag || '' }}
+          toTag:   ${{ github.ref == 'refs/heads/main' && steps.bump.outputs.tag || '' }}
           configurationJson: |
             {
-              "template": "# Changelog\n\n{{CHANGELOG}}",
+              "template": "# Changelog\n\n#{{CHANGELOG}}",
               "categories": [
                 {"title": "✨ Features", "labels": ["feat", "feature"]},
                 {"title": "🐛 Bug Fixes", "labels": ["fix", "bug"]},
