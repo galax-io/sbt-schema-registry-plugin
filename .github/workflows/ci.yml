@@ -56,8 +56,47 @@ jobs:
         run: sbt scalafmtCheckAll scalafmtSbtCheck
       - name: Compile
         run: sbt clean compile
-      - name: Test
-        run: sbt test
+      - name: Tests & Coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          sbt 'show coverageEnabled' >/tmp/coverage-check.txt 2>&1
+          ok=$?
+          set -e
+          if [ $ok -eq 0 ]; then
+            sbt coverage test coverageReport coverageAggregate
+          else
+            sbt test
+          fi
+      - name: Publish Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Scala Tests
+          path: |
+            **/target/test-reports/*.xml
+            **/target/surefire-reports/*.xml
+            **/target/**/test-reports/*.xml
+          reporter: java-junit
+          fail-on-error: false
+      - name: Upload Coverage HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoverage-html
+          path: |
+            **/target/scala-*/scoverage-report/**
+            **/target/**/scoverage-report/**
+          if-no-files-found: ignore
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: |
+            **/target/**/scoverage-report/scoverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   release:
     name: Release (tag-driven)
