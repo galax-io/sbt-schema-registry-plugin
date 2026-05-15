@@ -13,6 +13,6 @@ object Dependencies {
 
   lazy val schemaRegistryClient: ModuleID = "io.confluent" % "kafka-schema-registry-client" % Versions.schReqClient
 
-  lazy val scalatest: ModuleID      = "org.scalatest"     %% "scalatest"       % Versions.scalatest % Test
-  lazy val mockitoScala: ModuleID   = "org.mockito"       %% "mockito-scala-scalatest" % Versions.mockito % Test
+  lazy val scalatest: ModuleID    = "org.scalatest" %% "scalatest"               % Versions.scalatest % Test
+  lazy val mockitoScala: ModuleID = "org.mockito"   %% "mockito-scala-scalatest" % Versions.mockito   % Test
 }
