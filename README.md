@@ -25,18 +25,36 @@ addSbtPlugin("org.galaxio" % "sbt-schema-registry-plugin" % "<plugin-version>")
 In your `build.sbt`:
 
 ```sbt
-import org.galaxio.avro.RegistrySubject
+import org.galaxio.avro.{RegistrySubject, SchemaRegistryAuth}
 
 val schemas = Seq(
-  RegistrySubject("hello.world.schema", 2),
-  RegistrySubject("schema1-name", 12),
+  RegistrySubject("hello.world.schema", 2),      // specific version
+  RegistrySubject("schema1-name", 12),            // specific version
+  RegistrySubject.latest("schema2-name"),          // latest version
 )
 
 lazy val root = (project in file("."))
   .settings(
-    schemaRegistryUrl := "http://schema-registry-host:8081",
+    schemaRegistryUrl      := "http://schema-registry-host:8081",
     schemaRegistrySubjects ++= schemas,
   )
+```
+
+### Authentication
+
+```sbt
+schemaRegistryAuth := Some(SchemaRegistryAuth.BasicAuth("username", "password"))
+```
+
+### Extra Properties
+
+Pass any Confluent client properties (SSL, timeouts, etc.):
+
+```sbt
+schemaRegistryProperties := Map(
+  "schema.registry.ssl.truststore.location" -> "/path/to/truststore.jks",
+  "schema.registry.ssl.truststore.password" -> "changeit",
+)
 ```
 
 ## Usage
@@ -47,15 +65,19 @@ Download all schemas listed in `schemaRegistrySubjects`:
 sbt "Compile / schemaRegistryDownload"
 ```
 
-Schema files are saved as `.avsc` files in the target folder.
+Schema files are saved as `<subject>-<version>.avsc` in the target folder.
+The build will fail if any schema download fails.
 
 ## Settings
 
-| Parameter                    | Description                            | Default                |
-|------------------------------|----------------------------------------|------------------------|
-| `schemaRegistrySubjects`     | List of schema subjects with versions  | `Seq()`                |
-| `schemaRegistryUrl`          | URL of the schema registry             | `http://localhost:8081` |
-| `schemaRegistryTargetFolder` | Output directory for downloaded schemas | `src/main/avro`        |
+| Parameter                    | Description                              | Default                |
+|------------------------------|------------------------------------------|------------------------|
+| `schemaRegistrySubjects`     | List of schema subjects with versions    | `Seq()`                |
+| `schemaRegistryUrl`          | URL of the schema registry               | `http://localhost:8081` |
+| `schemaRegistryTargetFolder` | Output directory for downloaded schemas   | `src/main/avro`        |
+| `schemaRegistryCacheSize`    | Schema registry client cache size        | `200`                  |
+| `schemaRegistryAuth`         | Authentication credentials               | `None`                 |
+| `schemaRegistryProperties`   | Additional schema registry client config | `Map.empty`            |
 
 ## License
 
