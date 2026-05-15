@@ -2,37 +2,68 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
 import io.confluent.kafka.schemaregistry.client.rest.entities.Schema
+
 import java.nio.file.{Files, Path}
+import java.util.{Collections, HashMap => JHashMap}
 import scala.util.Try
 import sbt.util.Logger
 
 class Downloader(client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger) {
 
-  private def createOutputDirIfNeeded: Try[Unit] = Try {
-    if (Files.notExists(schemaOutputDir)) {
-      Files.createDirectory(schemaOutputDir)
+  private def createOutputDirIfNeeded(): Unit =
+    if (Files.notExists(schemaOutputDir))
+      Files.createDirectories(schemaOutputDir)
+
+  private def fileName(subject: String, version: Int): String =
+    s"$subject-$version.${Downloader.avroSchemaFileExtension}"
+
+  private def fetchSchema(subject: RegistrySubject): Schema =
+    subject.version match {
+      case Some(v) =>
+        client.getByVersion(subject.name, v, false)
+      case None    =>
+        val meta   = client.getLatestSchemaMetadata(subject.name)
+        val schema =
+          new Schema(subject.name, meta.getVersion, meta.getId, meta.getSchemaType, Collections.emptyList(), meta.getSchema)
+        schema
     }
+
+  def schemaSubjectToFile(subject: RegistrySubject): Try[Path] = Try {
+    val versionLabel = subject.version.map(_.toString).getOrElse("latest")
+    logger.info(s"Downloading schema ${subject.name} version=$versionLabel")
+    val schema       = fetchSchema(subject)
+    createOutputDirIfNeeded()
+    val name         = fileName(schema.getSubject, schema.getVersion)
+    val path         = Files.write(schemaOutputDir.resolve(name), schema.getSchema.getBytes())
+    logger.info(s"Saved schema ${subject.name} to $path")
+    path
   }
 
-  private def fileNameFromSchema(schema: Schema): Try[String] =
-    scala.util.Success(s"${schema.getSubject}-${schema.getVersion}.${Downloader.avroSchemeFileExtension}")
-
-  private def writeSchemaToFile(schema: Schema, fileName: String) = Try {
-    Files.write(schemaOutputDir.resolve(fileName), schema.getSchema.getBytes())
-  }
-
-  def schemaSubjectToFile(schemaSubject: RegistrySubject): Unit =
-    (for {
-      _        <- Try(logger.info(s"start downloading schema ${schemaSubject.name} with version ${schemaSubject.version}"))
-      schema   <- Try(client.getByVersion(schemaSubject.name, schemaSubject.version, false))
-      _        <- createOutputDirIfNeeded
-      fileName <- fileNameFromSchema(schema)
-      path     <- writeSchemaToFile(schema, fileName)
-    } yield path).fold(e => logger.error(e.getMessage), p => logger.info(s"saved schema ${schemaSubject.name} to $p"))
 }
-object Downloader {
-  val avroSchemeFileExtension = "avsc"
 
-  def apply(rootUrl: String, schemaOutputDir: Path, logger: Logger): Downloader =
-    new Downloader(new CachedSchemaRegistryClient(rootUrl, 200), schemaOutputDir, logger)
+object Downloader {
+  val avroSchemaFileExtension = "avsc"
+
+  def apply(
+      rootUrl: String,
+      schemaOutputDir: Path,
+      logger: Logger,
+      cacheSize: Int = 200,
+      auth: Option[SchemaRegistryAuth] = None,
+      properties: Map[String, String] = Map.empty,
+  ): Downloader = {
+    val config = new JHashMap[String, Any]()
+    properties.foreach { case (k, v) => config.put(k, v) }
+
+    auth.foreach { case SchemaRegistryAuth.BasicAuth(user, pass) =>
+      config.put("basic.auth.credentials.source", "USER_INFO")
+      config.put("basic.auth.user.info", s"$user:$pass")
+    }
+
+    val client =
+      if (config.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
+      else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, config)
+
+    new Downloader(client, schemaOutputDir, logger)
+  }
 }

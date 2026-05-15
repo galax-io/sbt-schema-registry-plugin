@@ -8,7 +8,7 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
     sbtPlugin                     := true,
     pluginCrossBuild / sbtVersion := "1.12.2",
     resolvers ++= Seq("Confluent" at "https://packages.confluent.io/maven/"),
-    libraryDependencies ++= Seq(schemaRegistryClient),
+    libraryDependencies ++= Seq(schemaRegistryClient, scalatest, mockitoScala),
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024M",
       "-Dplugin.version=" + version.value,
