@@ -63,12 +63,8 @@ jobs:
           restore-keys: sbt-${{ runner.os }}-
       - name: Compile
         run: sbt compile
-      - name: Test with Coverage
-        run: sbt coverage test coverageReport coverageOff
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
-        with:
-          fail_ci_if_error: false
+      - name: Test
+        run: sbt test
 
   release:
     name: Release (tag-driven)
