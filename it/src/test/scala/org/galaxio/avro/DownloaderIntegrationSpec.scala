@@ -6,8 +6,9 @@ import org.apache.avro.Schema
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.testcontainers.containers.{GenericContainer => JGenericContainer, KafkaContainer, Network}
+import org.testcontainers.containers.{GenericContainer => JGenericContainer, Network}
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
 import sbt.util.Logger
 
@@ -16,12 +17,12 @@ import scala.util.{Failure, Success}
 
 /** Integration tests for [[Downloader]] using real Confluent Schema Registry and Kafka containers.
   *
-  * Run with: sbt IntegrationTest/test (requires Docker)
+  * Run with: sbt it/test (requires Docker)
   */
 class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
 
   private var network: Network                           = _
-  private var kafka: KafkaContainer                      = _
+  private var kafka: ConfluentKafkaContainer             = _
   private var sr: JGenericContainer[_]                   = _
   private var registryUrl: String                        = _
   private var registryClient: CachedSchemaRegistryClient = _
@@ -29,16 +30,16 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
   override def beforeAll(): Unit = {
     network = Network.newNetwork()
 
-    kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
+    kafka = new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
+    kafka.withListener("kafka:19092")
     kafka.withNetwork(network)
-    kafka.withNetworkAliases("kafka")
     kafka.start()
 
     sr = new JGenericContainer(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
     sr.withNetwork(network)
     sr.withExposedPorts(8081)
     sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
-    sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "kafka:9092")
+    sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:19092")
     sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
     sr.start()
 

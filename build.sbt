@@ -1,35 +1,53 @@
 import Dependencies.*
 
+val sbtV = "1.12.11"
+
+lazy val commonSettings = Seq(
+  scalaVersion := "2.12.21",
+  scalacOptions ++= Seq(
+    "-encoding",
+    "UTF-8",
+    "-Xfatal-warnings",
+    "-deprecation",
+    "-feature",
+    "-unchecked",
+    "-language:implicitConversions",
+    "-language:higherKinds",
+    "-language:existentials",
+    "-language:postfixOps",
+  ),
+)
+
 lazy val sbtSchemaRegistryPlugin = (project in file("."))
   .enablePlugins(SbtPlugin, GitVersioning)
-  .configs(IntegrationTest)
+  .settings(commonSettings)
   .settings(
     name                          := "sbt-schema-registry-plugin",
-    scalaVersion                  := "2.12.21",
     sbtPlugin                     := true,
-    pluginCrossBuild / sbtVersion := "1.12.2",
+    pluginCrossBuild / sbtVersion := sbtV,
     resolvers ++= Seq("Confluent" at "https://packages.confluent.io/maven/"),
-    libraryDependencies ++= Seq(schemaRegistryClient, scalatest, mockitoScala),
+    libraryDependencies ++= Seq(
+      schemaRegistryClient,
+      scalatest    % Test,
+      mockitoScala % Test,
+    ),
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024M",
       "-Dplugin.version=" + version.value,
     ),
     scriptedBufferLog             := false,
-    scalacOptions ++= Seq(
-      "-encoding",
-      "UTF-8",            // Option and arguments on same line
-      "-Xfatal-warnings", // New lines for each options
-      "-deprecation",
-      "-feature",
-      "-unchecked",
-      "-language:implicitConversions",
-      "-language:higherKinds",
-      "-language:existentials",
-      "-language:postfixOps",
-    ),
   )
+
+lazy val it = (project in file("it"))
+  .dependsOn(sbtSchemaRegistryPlugin)
+  .settings(commonSettings)
   .settings(
-    inConfig(IntegrationTest)(Defaults.itSettings),
-    IntegrationTest / fork := true,
-    libraryDependencies ++= Seq(testcontainersKafka),
+    name           := "sbt-schema-registry-plugin-it",
+    publish / skip := true,
+    Test / fork    := true,
+    libraryDependencies ++= Seq(
+      "org.scala-sbt"    %% "util-logging" % sbtV % Test,
+      scalatest           % Test,
+      testcontainersKafka % Test,
+    ),
   )
