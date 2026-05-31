@@ -5,7 +5,7 @@ object Dependencies {
     val avro           = "1.12.0"
     val schReqClient   = "8.0.0"
     val scalatest      = "3.2.19"
-    val mockito        = "1.17.37"
+    val mockito        = "2.0.0"
     val testcontainers = "1.19.3"
   }
 
