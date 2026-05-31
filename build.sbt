@@ -2,6 +2,7 @@ import Dependencies.*
 
 lazy val sbtSchemaRegistryPlugin = (project in file("."))
   .enablePlugins(SbtPlugin, GitVersioning)
+  .configs(IntegrationTest)
   .settings(
     name                          := "sbt-schema-registry-plugin",
     scalaVersion                  := "2.12.21",
@@ -26,4 +27,9 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
       "-language:existentials",
       "-language:postfixOps",
     ),
+  )
+  .settings(
+    inConfig(IntegrationTest)(Defaults.itSettings),
+    IntegrationTest / fork := true,
+    libraryDependencies ++= Seq(testcontainersKafka),
   )
