@@ -146,7 +146,7 @@ lazy val root = (project in file("."))
     ),
 
     // Output directory (must match your Avro code-gen plugin's source directory)
-    schemaRegistryTargetFolder := "src/main/avro",
+    schemaRegistryTargetFolder := file("src/main/avro"),
 
     // Download schemas before compiling
     Compile / compile := (Compile / compile)
