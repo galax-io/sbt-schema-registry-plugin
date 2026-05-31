@@ -10,9 +10,8 @@ Principal Engineer in sbt plugin and Scala tooling development. Strong Scala 2.1
 
 - Scala 2.12.21, sbt 1.12.11, Java 17+
 - Confluent `kafka-schema-registry-client` 8.2.1
-- Apache Avro 1.12.1 (avro, avro-compiler)
 - ScalaTest 3.2.19 + mockito-scala-scalatest 2.0.0 (mockito-core 5.x) for unit tests
-- Testcontainers 1.21.3 (`org.testcontainers:kafka`) for integration tests (`it:test`)
+- Testcontainers 1.21.3 (`org.testcontainers:kafka`) for integration tests in the `it` subproject (`it/test`)
 
 ## Commands
 
@@ -33,7 +32,7 @@ sbt compile test
 
 Integration tests (requires Docker):
 ```
-sbt it:test
+sbt it/test
 ```
 
 Scripted (sbt plugin integration tests, if present):
