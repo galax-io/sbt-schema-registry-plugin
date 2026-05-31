@@ -1,0 +1,25 @@
+name: 'sbt setup'
+description: 'Set up Temurin JDK, sbt, and dependency caches for an sbt build'
+inputs:
+  java-version:
+    description: 'Temurin JDK version'
+    required: false
+    default: '17'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+        cache: sbt
+    - uses: sbt/setup-sbt@v1
+    - uses: coursier/cache-action@v8
+    - uses: actions/cache@v5
+      with:
+        path: |
+          ~/.ivy2/cache
+          ~/.sbt
+          ~/.cache/coursier
+        key: sbt-${{ runner.os }}-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/**') }}
+        restore-keys: sbt-${{ runner.os }}-
