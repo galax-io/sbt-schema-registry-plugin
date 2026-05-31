@@ -2,13 +2,14 @@ import Dependencies.*
 
 lazy val sbtSchemaRegistryPlugin = (project in file("."))
   .enablePlugins(SbtPlugin, GitVersioning)
+  .configs(IntegrationTest)
   .settings(
     name                          := "sbt-schema-registry-plugin",
     scalaVersion                  := "2.12.21",
     sbtPlugin                     := true,
     pluginCrossBuild / sbtVersion := "1.12.2",
     resolvers ++= Seq("Confluent" at "https://packages.confluent.io/maven/"),
-    libraryDependencies ++= Seq(schemaRegistryClient, scalatest, mockitoScala, wireMock),
+    libraryDependencies ++= Seq(schemaRegistryClient, scalatest, mockitoScala),
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024M",
       "-Dplugin.version=" + version.value,
@@ -26,4 +27,9 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
       "-language:existentials",
       "-language:postfixOps",
     ),
+  )
+  .settings(
+    inConfig(IntegrationTest)(Defaults.itSettings),
+    IntegrationTest / fork := true,
+    libraryDependencies ++= Seq(testcontainersScalaScalatest, testcontainersKafka),
   )
