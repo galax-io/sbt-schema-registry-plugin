@@ -2,11 +2,11 @@ import sbt.*
 
 object Dependencies {
   private object Versions {
-    val avro             = "1.12.0"
-    val schReqClient     = "8.0.0"
-    val scalatest        = "3.2.19"
-    val mockito          = "1.17.37"
-    val testcontainers   = "1.19.3"
+    val avro           = "1.12.0"
+    val schReqClient   = "8.0.0"
+    val scalatest      = "3.2.19"
+    val mockito        = "1.17.37"
+    val testcontainers = "1.19.3"
   }
 
   lazy val avroCompiler: ModuleID = "org.apache.avro" % "avro-compiler" % Versions.avro
