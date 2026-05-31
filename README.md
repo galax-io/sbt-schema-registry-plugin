@@ -217,6 +217,20 @@ version number instead:
 RegistrySubject("subject", 4)   // always downloads version 4
 ```
 
+## Development
+
+Built with **sbt 1.12.11** on **Scala 2.12.21** (the Scala version sbt runs on). The build is split into two
+modules: the plugin itself (root) and an `it` subproject that holds the Testcontainers-based integration tests.
+
+```bash
+sbt scalafmtAll scalafmtSbt   # format
+sbt compile test              # compile + unit tests (no external services)
+sbt it/test                   # integration tests — spins up Schema Registry + Kafka, requires Docker
+```
+
+CI runs formatting, unit tests, and integration tests on every PR; releases are tag-driven and published to
+Maven Central via `sbt-ci-release`.
+
 ## License
 
 [Apache 2.0](LICENSE)
