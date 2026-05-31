@@ -31,5 +31,5 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
   .settings(
     inConfig(IntegrationTest)(Defaults.itSettings),
     IntegrationTest / fork := true,
-    libraryDependencies ++= Seq(testcontainersScalaScalatest, testcontainersKafka),
+    libraryDependencies ++= Seq(testcontainersKafka),
   )
