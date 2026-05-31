@@ -16,15 +16,15 @@ import scala.util.{Failure, Success}
 
 /** Integration tests for [[Downloader]] using real Confluent Schema Registry and Kafka containers.
   *
-  * Run with: sbt IntegrationTest/test  (requires Docker)
+  * Run with: sbt IntegrationTest/test (requires Docker)
   */
 class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
 
-  private var network: Network                             = _
-  private var kafka: KafkaContainer                       = _
-  private var sr: JGenericContainer[_]                    = _
-  private var registryUrl: String                         = _
-  private var registryClient: CachedSchemaRegistryClient  = _
+  private var network: Network                           = _
+  private var kafka: KafkaContainer                      = _
+  private var sr: JGenericContainer[_]                   = _
+  private var registryUrl: String                        = _
+  private var registryClient: CachedSchemaRegistryClient = _
 
   override def beforeAll(): Unit = {
     network = Network.newNetwork()
@@ -42,14 +42,17 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
     sr.start()
 
-    registryUrl   = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
+    registryUrl = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
     registryClient = new CachedSchemaRegistryClient(registryUrl, 100)
   }
 
   override def afterAll(): Unit = {
-    try { if (sr    != null) sr.stop()    } catch { case _: Exception => }
-    try { if (kafka != null) kafka.stop() } catch { case _: Exception => }
-    try { if (network != null) network.close() } catch { case _: Exception => }
+    try { if (sr != null) sr.stop() }
+    catch { case _: Exception => }
+    try { if (kafka != null) kafka.stop() }
+    catch { case _: Exception => }
+    try { if (network != null) network.close() }
+    catch { case _: Exception => }
   }
 
   private def avroSchema(json: String): AvroSchema =
@@ -65,7 +68,8 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
 
   "Downloader (integration)" should "download schema by specific version" in withTempDir { dir =>
     val subject    = "it-specific"
-    val schemaJson = """{"type":"record","name":"ItSpecific","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    val schemaJson =
+      """{"type":"record","name":"ItSpecific","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
     val result = Downloader(registryUrl, dir, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 1))
@@ -96,7 +100,8 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
 
   it should "return Failure for missing version of existing subject" in withTempDir { dir =>
     val subject    = "it-version-miss"
-    val schemaJson = """{"type":"record","name":"ItVersionMiss","namespace":"org.galaxio","fields":[{"name":"x","type":"int"}]}"""
+    val schemaJson =
+      """{"type":"record","name":"ItVersionMiss","namespace":"org.galaxio","fields":[{"name":"x","type":"int"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
     val result = Downloader(registryUrl, dir, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 99))
