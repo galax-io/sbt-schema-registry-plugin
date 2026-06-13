@@ -8,7 +8,13 @@ import java.util.{Collections, HashMap => JHashMap}
 import scala.util.Try
 import sbt.util.Logger
 
-class Downloader(client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger) {
+class Downloader private (client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger, closeAction: () => Unit)
+    extends AutoCloseable {
+
+  def this(client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger) =
+    this(client, schemaOutputDir, logger, () => ())
+
+  override def close(): Unit = closeAction()
 
   private def createOutputDirIfNeeded(): Unit =
     if (Files.notExists(schemaOutputDir))
@@ -64,6 +70,6 @@ object Downloader {
       if (config.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
       else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, config)
 
-    new Downloader(client, schemaOutputDir, logger)
+    new Downloader(client, schemaOutputDir, logger, () => client.close())
   }
 }
