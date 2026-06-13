@@ -1,6 +1,6 @@
 # sbt-schema-registry-plugin — Agent Guide
 
-sbt plugin for downloading Avro schemas from Confluent Schema Registry and generating sources. Published plugin — treat all public sbt keys and task behavior as compatibility-sensitive.
+sbt plugin for downloading Avro schemas (`.avsc`) from Confluent Schema Registry. Source generation is left to a downstream Avro plugin (e.g. sbt-avrohugger). Published plugin — treat all public sbt keys and task behavior as compatibility-sensitive.
 
 ## Role
 

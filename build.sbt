@@ -19,7 +19,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val sbtSchemaRegistryPlugin = (project in file("."))
-  .enablePlugins(SbtPlugin, GitVersioning)
+  .enablePlugins(SbtPlugin)
   .settings(commonSettings)
   .settings(
     name                          := "sbt-schema-registry-plugin",
