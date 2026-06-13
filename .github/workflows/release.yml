@@ -1,0 +1,70 @@
+name: Release
+
+# Trunk-based development with release branches.
+# Trunk is `main`; `release/*` branches are cut from `main` for stabilization.
+# Pushing a `vX.Y.Z` tag on `main` or a `release/*` branch publishes to Maven Central
+# (via sbt-ci-release / dynver) and creates a GitHub Release with git-cliff notes.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  pull-requests: read   # git-cliff may read closed PRs to enrich release notes
+
+env:
+  SBT_OPTS: -Dsbt.color=true -Dsbt.log.noformat=false -Dsbt.supershell=false
+  JAVA_OPTS: -Xms2G -Xmx2G -Xss4M -XX:+UseG1GC
+
+jobs:
+  release:
+    name: Release (tag-driven)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on main or a release/* branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          BRANCH=$(git branch -r --contains "$TAG" | grep -E 'origin/(release/|main$)' | head -1 | xargs || true)
+          if [ -z "$BRANCH" ]; then
+            echo "::error::Tag $TAG is not on a release/* or main branch. Release aborted."
+            exit 1
+          fi
+          echo "Tag $TAG found on $BRANCH"
+
+      - uses: ./.github/actions/sbt-setup
+
+      - name: Compile & test
+        run: sbt compile test
+
+      - name: Publish to Maven Central via sbt-ci-release
+        env:
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        run: sbt ci-release
+
+      - name: Generate release notes
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          body: ${{ steps.changelog.outputs.content }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
