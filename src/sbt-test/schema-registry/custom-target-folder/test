@@ -1,0 +1,4 @@
+# Schema must land in custom-avro/, not default src/main/avro/.
+> Compile / schemaRegistryDownload
+$ exists custom-avro/it.e2e.Order-1.avsc
+-$ exists src/main/avro

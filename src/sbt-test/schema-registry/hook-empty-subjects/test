@@ -1,0 +1,2 @@
+# dependsOn hook with zero subjects must not break compile.
+> compile

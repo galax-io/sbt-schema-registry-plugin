@@ -1,0 +1,4 @@
+# Task is invocable in Compile scope with zero subjects — warns and succeeds.
+> Compile / schemaRegistryDownload
+# No target dir created when subjects list is empty.
+-$ exists src/main/avro

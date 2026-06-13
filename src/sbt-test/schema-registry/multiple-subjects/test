@@ -1,0 +1,4 @@
+# Two subjects in one run — both files must exist.
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc
+$ exists src/main/avro/it.e2e.User-1.avsc
