@@ -32,6 +32,7 @@ object RegistryFixture {
     val u      = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
     val client = new CachedSchemaRegistryClient(u, 10)
     client.register(subject, new AvroSchema(new Schema.Parser().parse(schemaJson)))
+    client.close()
     u
   }
 }

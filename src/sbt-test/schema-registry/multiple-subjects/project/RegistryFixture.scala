@@ -37,6 +37,7 @@ object RegistryFixture {
     val client = new CachedSchemaRegistryClient(u, 10)
     client.register(subjectA, new AvroSchema(new Schema.Parser().parse(schemaJsonA)))
     client.register(subjectB, new AvroSchema(new Schema.Parser().parse(schemaJsonB)))
+    client.close()
     u
   }
 }
