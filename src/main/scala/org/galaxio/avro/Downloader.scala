@@ -14,7 +14,9 @@ class Downloader private (client: SchemaRegistryClient, schemaOutputDir: Path, l
   def this(client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger) =
     this(client, schemaOutputDir, logger, () => ())
 
-  override def close(): Unit = closeAction()
+  override def close(): Unit =
+    try closeAction()
+    catch { case e: Exception => logger.warn(s"Failed to close schema registry client: ${e.getMessage}") }
 
   private def createOutputDirIfNeeded(): Unit =
     if (Files.notExists(schemaOutputDir))
