@@ -14,15 +14,20 @@ object RegistryFixture {
   val schemaJson =
     """{"type":"record","name":"Order","namespace":"it.e2e","fields":[{"name":"id","type":"long"}]}"""
 
+  // Confluent image tag — keep in sync with it/src/test/.../DownloaderIntegrationSpec.scala.
+  private val confluentTag = "7.5.0"
+
+  // Containers are intentionally not stopped: the scripted JVM is short-lived and
+  // Testcontainers' Ryuk (CI) / JVM reaper (local) cleans them up on exit.
   lazy val url: String = {
     val network = Network.newNetwork()
 
-    val kafka = new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
+    val kafka = new ConfluentKafkaContainer(DockerImageName.parse(s"confluentinc/cp-kafka:$confluentTag"))
     kafka.withListener("kafka:19092")
     kafka.withNetwork(network)
     kafka.start()
 
-    val sr = new JGenericContainer(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
+    val sr = new JGenericContainer(DockerImageName.parse(s"confluentinc/cp-schema-registry:$confluentTag"))
     sr.withNetwork(network)
     sr.withExposedPorts(8081)
     sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")

@@ -5,6 +5,7 @@ import sbtavrohugger.SbtAvrohugger.autoImport._
 // then generate Scala from it via avrohugger and compile — proving the schema is valid.
 lazy val root = (project in file("."))
   .settings(
+    scalaVersion               := "2.12.21",
     schemaRegistryUrl          := RegistryFixture.url,
     schemaRegistrySubjects     += RegistrySubject(RegistryFixture.subject, 1),
     Compile / sourceGenerators += (Compile / avroScalaGenerate).taskValue,
