@@ -1,3 +1,8 @@
+import com.github.sbt.git.SbtGit
+
+// Use the git CLI instead of jgit for repo reads — jgit throws NoWorkTreeException in git worktrees.
+SbtGit.useReadableConsoleGit
+
 ThisBuild / versionScheme        := Some("semver-spec")
 ThisBuild / organization         := "org.galaxio"
 ThisBuild / organizationName     := "Galaxio Team"
