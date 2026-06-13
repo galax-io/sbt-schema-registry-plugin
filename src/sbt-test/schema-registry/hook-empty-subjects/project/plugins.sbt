@@ -1,1 +1,1 @@
-../../_fixtures/plugins.sbt
+../../.fixtures/plugins.sbt

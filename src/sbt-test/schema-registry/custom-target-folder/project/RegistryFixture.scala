@@ -1,1 +1,1 @@
-../../_fixtures/RegistryFixture.scala
+../../.fixtures/RegistryFixture.scala

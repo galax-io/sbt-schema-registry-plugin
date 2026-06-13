@@ -1,1 +1,1 @@
-../../_fixtures/docker.sbt
+../../.fixtures/docker.sbt
