@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read   # git-cliff may read closed PRs to enrich release notes
 
 env:
   SBT_OPTS: -Dsbt.color=true -Dsbt.log.noformat=false -Dsbt.supershell=false
