@@ -110,4 +110,45 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     Files.exists(dir.resolve("my.schema-3.avsc")) shouldBe true
   }
 
+  "Downloader.buildConfig" should "set BasicAuth credentials" in {
+    val config = Downloader.buildConfig(
+      Some(SchemaRegistryAuth.BasicAuth("alice", "s3cret")),
+      Map.empty,
+    )
+
+    config.get("basic.auth.credentials.source") shouldBe "USER_INFO"
+    config.get("basic.auth.user.info") shouldBe "alice:s3cret"
+  }
+
+  it should "pass through arbitrary properties unchanged" in {
+    val config = Downloader.buildConfig(
+      None,
+      Map(
+        "schema.registry.ssl.truststore.location" -> "/etc/pki/trust.jks",
+        "schema.registry.ssl.truststore.password" -> "changeit",
+      ),
+    )
+
+    config.get("schema.registry.ssl.truststore.location") shouldBe "/etc/pki/trust.jks"
+    config.get("schema.registry.ssl.truststore.password") shouldBe "changeit"
+    config.size() shouldBe 2
+  }
+
+  it should "merge auth and properties without key loss" in {
+    val config = Downloader.buildConfig(
+      Some(SchemaRegistryAuth.BasicAuth("bob", "pw")),
+      Map("custom.prop" -> "val"),
+    )
+
+    config.get("basic.auth.credentials.source") shouldBe "USER_INFO"
+    config.get("basic.auth.user.info") shouldBe "bob:pw"
+    config.get("custom.prop") shouldBe "val"
+    config.size() shouldBe 3
+  }
+
+  it should "return empty map when no auth and no properties" in {
+    val config = Downloader.buildConfig(None, Map.empty)
+    config shouldBe empty
+  }
+
 }
