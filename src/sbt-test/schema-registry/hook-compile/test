@@ -1,0 +1,3 @@
+# compile must trigger schemaRegistryDownload via dependsOn.
+# Registry is unreachable, so compile must fail — proving the hook fired.
+-> compile
