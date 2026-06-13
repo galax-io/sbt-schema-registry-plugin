@@ -51,6 +51,19 @@ class Downloader private (client: SchemaRegistryClient, schemaOutputDir: Path, l
 object Downloader {
   val avroSchemaFileExtension = "avsc"
 
+  private[avro] def buildConfig(
+      auth: Option[SchemaRegistryAuth],
+      properties: Map[String, String],
+  ): JHashMap[String, Any] = {
+    val config = new JHashMap[String, Any]()
+    properties.foreach { case (k, v) => config.put(k, v) }
+    auth.foreach { case SchemaRegistryAuth.BasicAuth(user, pass) =>
+      config.put("basic.auth.credentials.source", "USER_INFO")
+      config.put("basic.auth.user.info", s"$user:$pass")
+    }
+    config
+  }
+
   def apply(
       rootUrl: String,
       schemaOutputDir: Path,
@@ -59,13 +72,7 @@ object Downloader {
       auth: Option[SchemaRegistryAuth] = None,
       properties: Map[String, String] = Map.empty,
   ): Downloader = {
-    val config = new JHashMap[String, Any]()
-    properties.foreach { case (k, v) => config.put(k, v) }
-
-    auth.foreach { case SchemaRegistryAuth.BasicAuth(user, pass) =>
-      config.put("basic.auth.credentials.source", "USER_INFO")
-      config.put("basic.auth.user.info", s"$user:$pass")
-    }
+    val config = buildConfig(auth, properties)
 
     val client =
       if (config.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
