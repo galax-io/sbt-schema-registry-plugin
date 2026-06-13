@@ -3,6 +3,8 @@ package org.galaxio.avro
 import sbt.*
 import Keys.*
 
+import scala.util.Using
+
 object SchemaDownloaderPlugin extends AutoPlugin {
   override def trigger = allRequirements
 
@@ -40,24 +42,26 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       if (subjects.isEmpty) {
         logger.warn("No schema subjects configured. Set schemaRegistrySubjects to download schemas.")
       } else {
-        val downloader = Downloader(
-          rootUrl = schemaRegistryUrl.value,
-          schemaOutputDir = schemaRegistryTargetFolder.value.toPath,
-          logger = logger,
-          cacheSize = schemaRegistryCacheSize.value,
-          auth = schemaRegistryAuth.value,
-          properties = schemaRegistryProperties.value,
-        )
+        Using.resource(
+          Downloader(
+            rootUrl = schemaRegistryUrl.value,
+            schemaOutputDir = schemaRegistryTargetFolder.value.toPath,
+            logger = logger,
+            cacheSize = schemaRegistryCacheSize.value,
+            auth = schemaRegistryAuth.value,
+            properties = schemaRegistryProperties.value,
+          ),
+        ) { downloader =>
+          val results  = subjects.map(s => s -> downloader.schemaSubjectToFile(s))
+          val failures = results.collect { case (s, scala.util.Failure(e)) => s -> e }
 
-        val results  = subjects.map(s => s -> downloader.schemaSubjectToFile(s))
-        val failures = results.collect { case (s, scala.util.Failure(e)) => s -> e }
-
-        if (failures.nonEmpty) {
-          failures.foreach { case (s, e) =>
-            logger.error(s"Failed to download schema ${s.name}: ${e.getMessage}")
-            logger.trace(e)
+          if (failures.nonEmpty) {
+            failures.foreach { case (s, e) =>
+              logger.error(s"Failed to download schema ${s.name}: ${e.getMessage}")
+              logger.trace(e)
+            }
+            sys.error(s"Failed to download ${failures.size} schema(s)")
           }
-          sys.error(s"Failed to download ${failures.size} schema(s)")
         }
       }
     },
