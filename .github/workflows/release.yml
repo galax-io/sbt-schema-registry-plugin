@@ -52,12 +52,26 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
         run: sbt ci-release
 
+      - name: Compute changelog range
+        id: range
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          PREV=$(git describe --tags --abbrev=0 --first-parent "${TAG}^" --match 'v[0-9]*' 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            echo "cliff_args=${PREV}..${TAG} --strip header" >> "$GITHUB_OUTPUT"
+          else
+            echo "cliff_args=--strip header" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Changelog range: ${PREV:-<initial>}..${TAG}"
+
       - name: Generate release notes
         id: changelog
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --latest --strip header
+          args: ${{ steps.range.outputs.cliff_args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
