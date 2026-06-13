@@ -1,0 +1,5 @@
+# Running download twice must succeed — file overwrite is safe.
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc
