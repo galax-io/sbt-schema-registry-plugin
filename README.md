@@ -226,10 +226,22 @@ modules: the plugin itself (root) and an `it` subproject that holds the Testcont
 sbt scalafmtAll scalafmtSbt   # format
 sbt compile test              # compile + unit tests (no external services)
 sbt it/test                   # integration tests — spins up Schema Registry + Kafka, requires Docker
+sbt scripted                  # plugin e2e tests (download-success needs Docker)
 ```
 
-CI runs formatting, unit tests, and integration tests on every PR; releases are tag-driven and published to
-Maven Central via `sbt-ci-release`.
+`ci.yml` runs formatting, unit tests, integration tests, and scripted tests on every PR and on `main` /
+`release/*`.
+
+### Release process
+
+Trunk-based: `main` is the trunk; cut `release/*` branches from it for stabilization. Releases are
+**tag-driven** — push a `vX.Y.Z` tag on `main` or a `release/*` branch and `release.yml` will:
+
+1. verify the tag sits on `main` / `release/*`,
+2. run `sbt compile test`,
+3. publish to Maven Central via `sbt-ci-release` (version derived from the tag by dynver),
+4. generate release notes from Conventional Commits with [git-cliff](https://git-cliff.org) (`cliff.toml`) and
+   create a GitHub Release.
 
 ## License
 
