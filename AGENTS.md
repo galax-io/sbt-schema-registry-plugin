@@ -1,6 +1,6 @@
 # sbt-schema-registry-plugin — Agent Guide
 
-sbt plugin for downloading Avro schemas from Confluent Schema Registry and generating sources. Published plugin — treat all public sbt keys and task behavior as compatibility-sensitive.
+sbt plugin for downloading Avro schemas (`.avsc`) from Confluent Schema Registry. Source generation is left to a downstream Avro plugin (e.g. sbt-avrohugger). Published plugin — treat all public sbt keys and task behavior as compatibility-sensitive.
 
 ## Role
 
@@ -64,7 +64,7 @@ class Downloader { val auth = BasicAuth(...) }
 - Branch from `main`; keep commits semantic and green
 - Preserve backward compatibility for published sbt keys and task behavior
 - Treat `build.sbt`, `project/Dependencies.scala`, `project/plugins.sbt` as source of truth for dependencies
-- Treat `.github/workflows/ci.yml` (PR/branch checks) and `.github/workflows/release.yml` (tag-driven release) as source of truth for CI and release behavior
+- Treat `.github/workflows/ci.yml` as source of truth for formatting, compile, tests, and release
 
 ⚠️ Ask first:
 - Adding new dependencies or major-version upgrades
@@ -85,5 +85,5 @@ class Downloader { val auth = BasicAuth(...) }
 2. Run verify commands before commit.
 3. Keep commits semantic and green.
 4. Prefer rebase-oriented history; avoid merge commits in PR branches.
-5. CI in `.github/workflows/ci.yml` is the source of truth for formatting, compile, and tests.
-6. Trunk-based: `main` is trunk, `release/*` branches for stabilization. Releases are tag-driven — push `vX.Y.Z` on `main` or a `release/*` branch; `.github/workflows/release.yml` verifies the tag, runs tests, publishes via sbt-ci-release, and writes notes with git-cliff (`cliff.toml`). Align with this rather than inventing a parallel path.
+5. CI in `.github/workflows/ci.yml` is the source of truth for formatting, compile, tests, and release behavior.
+6. Releases are tag-driven from `main` and `v*` tags via sbt-ci-release to Sonatype; align with existing workflows rather than inventing a parallel path.

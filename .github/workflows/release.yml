@@ -40,6 +40,8 @@ jobs:
       - uses: ./.github/actions/sbt-setup
 
       - name: Compile & test
+        # Integration tests (it/test) and scripted tests run in ci.yml on PRs
+        # before merge — no need to re-run with Docker during release.
         run: sbt compile test
 
       - name: Publish to Maven Central via sbt-ci-release
