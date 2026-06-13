@@ -1,0 +1,3 @@
+# Empty subjects: task succeeds (warns), creates no output.
+> Compile / schemaRegistryDownload
+-$ exists src/main/avro

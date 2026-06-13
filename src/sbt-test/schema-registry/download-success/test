@@ -1,0 +1,6 @@
+# Download a real schema through the plugin task; file must exist and be byte-correct.
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc
+$ must-mirror src/main/avro/it.e2e.Order-1.avsc expected.avsc
+# Validity: generate Scala from the downloaded schema and compile it.
+> compile

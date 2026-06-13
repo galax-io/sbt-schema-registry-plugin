@@ -57,6 +57,23 @@ jobs:
       - name: Integration Test
         run: sbt it/test
 
+  scripted:
+    name: Scripted (plugin e2e)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # Testcontainers boots from sbt's meta-build classloader, where strategy
+      # ServiceLoader discovery finds no socket strategy. Point it at the daemon
+      # explicitly via the env strategy (which needs no ServiceLoader).
+      DOCKER_HOST: unix:///var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/sbt-setup
+      - name: Scripted tests
+        run: sbt scripted
+
   release:
     name: Release (tag-driven)
     needs: [format, test]

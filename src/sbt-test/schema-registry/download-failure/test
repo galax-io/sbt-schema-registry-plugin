@@ -1,0 +1,2 @@
+# Unreachable registry: the download task must fail the build.
+-> Compile / schemaRegistryDownload
