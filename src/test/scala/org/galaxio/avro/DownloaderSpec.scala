@@ -169,7 +169,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     result.failed.get.getMessage should include("path separators")
   }
 
-  it should "close should be safe to call multiple times" in withTempDir { dir =>
+  it should "be safe to call close multiple times" in withTempDir { dir =>
     val client     = mock[SchemaRegistryClient]
     val downloader = new Downloader(client, dir, testLogger)
 
@@ -179,7 +179,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     }
   }
 
-  it should "latest download should use resolved version number in filename" in withTempDir { dir =>
+  it should "use resolved version number in filename for latest" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     val meta   = new SchemaMetadata(1, 7, "AVRO", Collections.emptyList(), """{"type":"int"}""")
     when(client.getLatestSchemaMetadata("my-subject")).thenReturn(meta)
@@ -193,7 +193,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     Files.exists(dir.resolve("my-subject-latest.avsc")) shouldBe false
   }
 
-  it should "empty schema body should write zero-byte file" in withTempDir { dir =>
+  it should "write zero-byte file for empty schema body" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     val schema = schemaEntity("empty-schema", 1, "")
     when(client.getByVersion("empty-schema", 1, false)).thenReturn(schema)
