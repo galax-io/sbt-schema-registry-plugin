@@ -2,6 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
+import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaReference
 import org.apache.avro.Schema
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
@@ -13,6 +14,7 @@ import org.testcontainers.utility.DockerImageName
 import sbt.util.Logger
 
 import java.nio.file.{Files, Path}
+import java.util.Collections
 import scala.util.{Failure, Success}
 
 /** Integration tests for [[Downloader]] using real Confluent Schema Registry and Kafka containers.
@@ -125,5 +127,121 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     r1 shouldBe a[Success[_]]
     r2 shouldBe a[Success[_]]
     new String(Files.readAllBytes(r1.get)) shouldBe new String(Files.readAllBytes(r2.get))
+  }
+
+  it should "download successfully when BasicAuth is configured against non-auth registry" in withTempDir { dir =>
+    val subject    = "it-basic-auth"
+    val schemaJson =
+      """{"type":"record","name":"ItBasicAuth","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    registryClient.register(subject, avroSchema(schemaJson))
+
+    val downloader =
+      Downloader(registryUrl, dir, silentLogger, auth = Some(SchemaRegistryAuth.BasicAuth("user", "pass")))
+    val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+
+    result shouldBe a[Success[_]]
+    val file = dir.resolve(s"$subject-1.avsc")
+    Files.exists(file) shouldBe true
+    new String(Files.readAllBytes(file)) shouldBe schemaJson
+  }
+
+  it should "track multi-version evolution and download latest or pinned" in withTempDir { dir =>
+    val subject = "it-evolve"
+    val v1Json  =
+      """{"type":"record","name":"Evolve","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    val v2Json  =
+      """{"type":"record","name":"Evolve","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":["null","string"],"default":null}]}"""
+    val v3Json  =
+      """{"type":"record","name":"Evolve","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":["null","string"],"default":null},{"name":"ts","type":["null","long"],"default":null}]}"""
+
+    registryClient.register(subject, avroSchema(v1Json))
+    registryClient.register(subject, avroSchema(v2Json))
+    registryClient.register(subject, avroSchema(v3Json))
+
+    val downloader = Downloader(registryUrl, dir, silentLogger)
+
+    val latestResult = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
+    latestResult shouldBe a[Success[_]]
+    val latestFile = dir.resolve(s"$subject-3.avsc")
+    Files.exists(latestFile) shouldBe true
+    new String(Files.readAllBytes(latestFile)) shouldBe v3Json
+
+    val pinnedResult = downloader.schemaSubjectToFile(RegistrySubject(subject, 2))
+    pinnedResult shouldBe a[Success[_]]
+    val pinnedFile = dir.resolve(s"$subject-2.avsc")
+    Files.exists(pinnedFile) shouldBe true
+    new String(Files.readAllBytes(pinnedFile)) shouldBe v2Json
+
+    val v4Json =
+      """{"type":"record","name":"Evolve","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":["null","string"],"default":null},{"name":"ts","type":["null","long"],"default":null},{"name":"tag","type":["null","string"],"default":null}]}"""
+    registryClient.register(subject, avroSchema(v4Json))
+
+    val dir2           = dir.resolve("latest2")
+    Files.createDirectories(dir2)
+    val downloader2    = Downloader(registryUrl, dir2, silentLogger)
+    val latestV4Result = downloader2.schemaSubjectToFile(RegistrySubject.latest(subject))
+    latestV4Result shouldBe a[Success[_]]
+    val latestV4File = dir2.resolve(s"$subject-4.avsc")
+    Files.exists(latestV4File) shouldBe true
+    new String(Files.readAllBytes(latestV4File)) shouldBe v4Json
+  }
+
+  it should "download schema registered with references" in withTempDir { dir =>
+    val baseSubject = "it-base-ref"
+    val baseJson    =
+      """{"type":"record","name":"Base","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    registryClient.register(baseSubject, avroSchema(baseJson))
+
+    val mainSubject = "it-main-ref"
+    val mainJson    =
+      """{"type":"record","name":"Main","namespace":"org.galaxio","fields":[{"name":"base_id","type":"long"},{"name":"value","type":"string"}]}"""
+    val ref         = new SchemaReference("Base", baseSubject, 1)
+    val mainSchema  = new AvroSchema(mainJson, Collections.singletonList(ref), Collections.emptyMap[String, String](), null)
+    registryClient.register(mainSubject, mainSchema)
+
+    val downloader = Downloader(registryUrl, dir, silentLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest(mainSubject))
+
+    result shouldBe a[Success[_]]
+    val file = dir.resolve(s"$mainSubject-1.avsc")
+    Files.exists(file) shouldBe true
+    new String(Files.readAllBytes(file)) shouldBe mainJson
+  }
+
+  it should "auto-create deeply nested output directory" in withTempDir { dir =>
+    val subject    = "it-nested-dir"
+    val schemaJson =
+      """{"type":"record","name":"ItNestedDir","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    registryClient.register(subject, avroSchema(schemaJson))
+
+    val deepDir = dir.resolve("nested").resolve("deep").resolve("output")
+    Files.exists(deepDir) shouldBe false
+
+    val result = Downloader(registryUrl, deepDir, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 1))
+
+    result shouldBe a[Success[_]]
+    Files.exists(deepDir) shouldBe true
+    val file = deepDir.resolve(s"$subject-1.avsc")
+    Files.exists(file) shouldBe true
+    new String(Files.readAllBytes(file)) shouldBe schemaJson
+  }
+
+  it should "overwrite corrupted file on re-download" in withTempDir { dir =>
+    val subject    = "it-overwrite"
+    val schemaJson =
+      """{"type":"record","name":"ItOverwrite","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    registryClient.register(subject, avroSchema(schemaJson))
+
+    val downloader = Downloader(registryUrl, dir, silentLogger)
+    val first      = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+    first shouldBe a[Success[_]]
+
+    val file = dir.resolve(s"$subject-1.avsc")
+    Files.write(file, "corrupted".getBytes())
+    new String(Files.readAllBytes(file)) shouldBe "corrupted"
+
+    val second = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+    second shouldBe a[Success[_]]
+    new String(Files.readAllBytes(file)) shouldBe schemaJson
   }
 }
