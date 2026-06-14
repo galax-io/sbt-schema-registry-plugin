@@ -71,4 +71,8 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
       - name: Scripted tests
+        # Some tests assert expected failures (-> prefix in sbt scripted).
+        # [error] lines in the log from download-failure, hook-compile, and
+        # hook-source-generators are intentional — they prove the plugin
+        # correctly fails the build when the registry is unreachable.
         run: sbt scripted
