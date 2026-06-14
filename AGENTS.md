@@ -34,4 +34,4 @@ Each class owns one responsibility. `SchemaDownloaderPlugin` wires sbt tasks →
 
 ## Release
 
-Trunk-based: tag-driven from `main` via `v*` tags, sbt-ci-release to Sonatype. Align with existing workflows.
+Trunk-based: `v*` tags on `main` or `release/*` branches trigger sbt-ci-release to Sonatype. `release/*` branches cut from `main` for stabilization.
