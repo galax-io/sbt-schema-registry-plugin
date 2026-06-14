@@ -69,6 +69,10 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     finally Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.deleteIfExists(_))
   }
 
+  private def withDownloader(downloader: Downloader)(test: Downloader => Any): Unit =
+    try test(downloader)
+    finally downloader.close()
+
   "Downloader (integration)" should "download schema by specific version" in withTempDir { dir =>
     val subject    = "it-specific"
     val schemaJson =
@@ -135,14 +139,16 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       """{"type":"record","name":"ItBasicAuth","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    val downloader =
-      Downloader(registryUrl, dir, silentLogger, auth = Some(SchemaRegistryAuth.BasicAuth("user", "pass")))
-    val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+    withDownloader(
+      Downloader(registryUrl, dir, silentLogger, auth = Some(SchemaRegistryAuth.BasicAuth("user", "pass"))),
+    ) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
 
-    result shouldBe a[Success[_]]
-    val file = dir.resolve(s"$subject-1.avsc")
-    Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe schemaJson
+      result shouldBe a[Success[_]]
+      val file = dir.resolve(s"$subject-1.avsc")
+      Files.exists(file) shouldBe true
+      new String(Files.readAllBytes(file)) shouldBe schemaJson
+    }
   }
 
   it should "track multi-version evolution and download latest or pinned" in withTempDir { dir =>
@@ -158,32 +164,33 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     registryClient.register(subject, avroSchema(v2Json))
     registryClient.register(subject, avroSchema(v3Json))
 
-    val downloader = Downloader(registryUrl, dir, silentLogger)
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val latestResult = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
+      latestResult shouldBe a[Success[_]]
+      val latestFile = dir.resolve(s"$subject-3.avsc")
+      Files.exists(latestFile) shouldBe true
+      new String(Files.readAllBytes(latestFile)) shouldBe v3Json
 
-    val latestResult = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
-    latestResult shouldBe a[Success[_]]
-    val latestFile = dir.resolve(s"$subject-3.avsc")
-    Files.exists(latestFile) shouldBe true
-    new String(Files.readAllBytes(latestFile)) shouldBe v3Json
-
-    val pinnedResult = downloader.schemaSubjectToFile(RegistrySubject(subject, 2))
-    pinnedResult shouldBe a[Success[_]]
-    val pinnedFile = dir.resolve(s"$subject-2.avsc")
-    Files.exists(pinnedFile) shouldBe true
-    new String(Files.readAllBytes(pinnedFile)) shouldBe v2Json
+      val pinnedResult = downloader.schemaSubjectToFile(RegistrySubject(subject, 2))
+      pinnedResult shouldBe a[Success[_]]
+      val pinnedFile = dir.resolve(s"$subject-2.avsc")
+      Files.exists(pinnedFile) shouldBe true
+      new String(Files.readAllBytes(pinnedFile)) shouldBe v2Json
+    }
 
     val v4Json =
       """{"type":"record","name":"Evolve","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":["null","string"],"default":null},{"name":"ts","type":["null","long"],"default":null},{"name":"tag","type":["null","string"],"default":null}]}"""
     registryClient.register(subject, avroSchema(v4Json))
 
-    val dir2           = dir.resolve("latest2")
+    val dir2 = dir.resolve("latest2")
     Files.createDirectories(dir2)
-    val downloader2    = Downloader(registryUrl, dir2, silentLogger)
-    val latestV4Result = downloader2.schemaSubjectToFile(RegistrySubject.latest(subject))
-    latestV4Result shouldBe a[Success[_]]
-    val latestV4File = dir2.resolve(s"$subject-4.avsc")
-    Files.exists(latestV4File) shouldBe true
-    new String(Files.readAllBytes(latestV4File)) shouldBe v4Json
+    withDownloader(Downloader(registryUrl, dir2, silentLogger)) { downloader2 =>
+      val latestV4Result = downloader2.schemaSubjectToFile(RegistrySubject.latest(subject))
+      latestV4Result shouldBe a[Success[_]]
+      val latestV4File = dir2.resolve(s"$subject-4.avsc")
+      Files.exists(latestV4File) shouldBe true
+      new String(Files.readAllBytes(latestV4File)) shouldBe v4Json
+    }
   }
 
   it should "download schema registered with references" in withTempDir { dir =>
@@ -199,13 +206,14 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     val mainSchema  = new AvroSchema(mainJson, Collections.singletonList(ref), Collections.emptyMap[String, String](), null)
     registryClient.register(mainSubject, mainSchema)
 
-    val downloader = Downloader(registryUrl, dir, silentLogger)
-    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest(mainSubject))
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject.latest(mainSubject))
 
-    result shouldBe a[Success[_]]
-    val file = dir.resolve(s"$mainSubject-1.avsc")
-    Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe mainJson
+      result shouldBe a[Success[_]]
+      val file = dir.resolve(s"$mainSubject-1.avsc")
+      Files.exists(file) shouldBe true
+      new String(Files.readAllBytes(file)) shouldBe mainJson
+    }
   }
 
   it should "auto-create deeply nested output directory" in withTempDir { dir =>
@@ -232,16 +240,17 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       """{"type":"record","name":"ItOverwrite","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    val downloader = Downloader(registryUrl, dir, silentLogger)
-    val first      = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
-    first shouldBe a[Success[_]]
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val first = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+      first shouldBe a[Success[_]]
 
-    val file = dir.resolve(s"$subject-1.avsc")
-    Files.write(file, "corrupted".getBytes())
-    new String(Files.readAllBytes(file)) shouldBe "corrupted"
+      val file = dir.resolve(s"$subject-1.avsc")
+      Files.write(file, "corrupted".getBytes())
+      new String(Files.readAllBytes(file)) shouldBe "corrupted"
 
-    val second = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
-    second shouldBe a[Success[_]]
-    new String(Files.readAllBytes(file)) shouldBe schemaJson
+      val second = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+      second shouldBe a[Success[_]]
+      new String(Files.readAllBytes(file)) shouldBe schemaJson
+    }
   }
 }
