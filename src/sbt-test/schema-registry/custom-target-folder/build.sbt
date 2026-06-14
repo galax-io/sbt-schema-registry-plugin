@@ -5,6 +5,6 @@ lazy val root = (project in file("."))
   .settings(
     scalaVersion               := "2.12.21",
     schemaRegistryUrl          := RegistryFixture.url,
-    schemaRegistrySubjects     += RegistrySubject(RegistryFixture.subject, 1),
+    schemaRegistrySubjects += RegistrySubject(RegistryFixture.subject, 1),
     schemaRegistryTargetFolder := baseDirectory.value / "custom-avro",
   )
