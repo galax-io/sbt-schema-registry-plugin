@@ -44,10 +44,8 @@ git config core.hooksPath .githooks
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-echo ">>> scalafmt check"
-sbt scalafmtCheckAll scalafmtSbtCheck
-echo ">>> unit tests"
-sbt test
+echo ">>> scalafmt check + compile + unit tests"
+sbt --client scalafmtCheckAll scalafmtSbtCheck compile test
 ```
 
 If format fails — run `sbt scalafmtAll scalafmtSbt` and re-commit. Never skip hooks (`--no-verify`).
