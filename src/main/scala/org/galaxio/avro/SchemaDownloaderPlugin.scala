@@ -53,12 +53,12 @@ object SchemaDownloaderPlugin extends AutoPlugin {
           ),
         ) { downloader =>
           val results  = subjects.map(s => s -> downloader.schemaSubjectToFile(s))
-          val failures = results.collect { case (s, scala.util.Failure(e)) => s -> e }
+          val failures = results.collect { case (s, Left(e)) => s -> e }
 
           if (failures.nonEmpty) {
             failures.foreach { case (s, e) =>
-              logger.error(s"Failed to download schema ${s.name}: ${e.getMessage}")
-              logger.trace(e)
+              logger.error(s"Failed to download schema ${s.name}: ${e.message}")
+              e.cause.foreach(logger.trace(_))
             }
             sys.error(s"Failed to download ${failures.size} schema(s)")
           }

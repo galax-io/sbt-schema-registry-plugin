@@ -1,52 +1,62 @@
 package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
+import sbt.util.Logger
 
 import java.nio.file.{Files, Path}
 import java.util.{Collections, HashMap => JHashMap}
 import scala.util.Try
-import sbt.util.Logger
 
-class Downloader private (client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger, closeAction: () => Unit)
-    extends AutoCloseable {
-
-  def this(client: SchemaRegistryClient, schemaOutputDir: Path, logger: Logger) =
-    this(client, schemaOutputDir, logger, () => ())
+final class Downloader private[avro] (
+    client: SchemaRegistryClient,
+    schemaOutputDir: Path,
+    logger: Logger,
+    closeAction: () => Unit = () => (),
+) extends AutoCloseable {
 
   override def close(): Unit =
     Try(closeAction()).failed.foreach(e => logger.warn(s"Failed to close schema registry client: ${e.getMessage}"))
 
-  private def createOutputDirIfNeeded(): Unit =
-    if (Files.notExists(schemaOutputDir))
-      Files.createDirectories(schemaOutputDir)
+  def schemaSubjectToFile(subject: RegistrySubject): Either[DownloadError, Path] =
+    for {
+      _        <- validateSubjectName(subject.name)
+      resolved <- fetchSchema(subject)
+      path     <- writeSchema(subject.name, resolved)
+    } yield path
 
-  private def fileName(subject: String, version: Int): String =
-    s"$subject-$version.${Downloader.avroSchemaFileExtension}"
+  private def validateSubjectName(name: String): Either[DownloadError, Unit] =
+    if (name.contains('/') || name.contains('\\')) Left(DownloadError.InvalidSubjectName(name))
+    else Right(())
 
-  private def validateSubjectName(name: String): Unit =
-    require(!name.contains('/') && !name.contains('\\'), s"Subject name must not contain path separators: $name")
-
-  def schemaSubjectToFile(subject: RegistrySubject): Try[Path] = Try {
-    validateSubjectName(subject.name)
-    val versionLabel = subject.version.map(_.toString).getOrElse("latest")
-    logger.info(s"Downloading schema ${subject.name} version=$versionLabel")
-
-    val (version: Int, schemaText: String) = subject.version match {
-      case Some(v) =>
-        val s = client.getByVersion(subject.name, v, false)
-        (s.getVersion: Int, s.getSchema)
-      case None    =>
-        val meta = client.getLatestSchemaMetadata(subject.name)
-        (meta.getVersion: Int, meta.getSchema)
-    }
-
-    createOutputDirIfNeeded()
-    val name = fileName(subject.name, version)
-    val path = Files.write(schemaOutputDir.resolve(name), schemaText.getBytes())
-    logger.info(s"Saved schema ${subject.name} to $path")
-    path
+  private def fetchSchema(subject: RegistrySubject): Either[DownloadError, (Int, String)] = {
+    logger.info(s"Downloading schema ${subject.name} version=${versionLabel(subject)}")
+    Try {
+      subject match {
+        case RegistrySubject.Pinned(name, version) =>
+          val s = client.getByVersion(name, version, false)
+          (s.getVersion: Int, s.getSchema)
+        case RegistrySubject.Latest(name)          =>
+          val meta = client.getLatestSchemaMetadata(name)
+          (meta.getVersion: Int, meta.getSchema)
+      }
+    }.toEither.left.map(DownloadError.SchemaFetchFailed(subject.name, _))
   }
 
+  private def writeSchema(subjectName: String, resolved: (Int, String)): Either[DownloadError, Path] = {
+    val (version, body) = resolved
+    Try {
+      if (Files.notExists(schemaOutputDir)) Files.createDirectories(schemaOutputDir)
+      val fileName = s"$subjectName-$version.${Downloader.avroSchemaFileExtension}"
+      val path     = Files.write(schemaOutputDir.resolve(fileName), body.getBytes())
+      logger.info(s"Saved schema $subjectName to $path")
+      path
+    }.toEither.left.map(DownloadError.WriteError(schemaOutputDir, _))
+  }
+
+  private def versionLabel(subject: RegistrySubject): String = subject match {
+    case RegistrySubject.Pinned(_, v) => v.toString
+    case _: RegistrySubject.Latest    => "latest"
+  }
 }
 
 object Downloader {
@@ -56,14 +66,14 @@ object Downloader {
   private[avro] def buildConfig(
       auth: Option[SchemaRegistryAuth],
       properties: Map[String, String],
-  ): JHashMap[String, Any] = {
-    val config = new JHashMap[String, Any]()
-    properties.foreach { case (k, v) => config.put(k, v) }
-    auth.foreach { case SchemaRegistryAuth.BasicAuth(user, pass) =>
-      config.put("basic.auth.credentials.source", "USER_INFO")
-      config.put("basic.auth.user.info", s"$user:$pass")
+  ): Map[String, Any] = {
+    val authEntries = auth.fold(Map.empty[String, Any]) { case SchemaRegistryAuth.BasicAuth(user, pass) =>
+      Map[String, Any](
+        "basic.auth.credentials.source" -> "USER_INFO",
+        "basic.auth.user.info"          -> s"$user:$pass",
+      )
     }
-    config
+    properties ++ authEntries
   }
 
   def apply(
@@ -74,11 +84,16 @@ object Downloader {
       auth: Option[SchemaRegistryAuth] = None,
       properties: Map[String, String] = Map.empty,
   ): Downloader = {
-    val config = buildConfig(auth, properties)
+    val config     = buildConfig(auth, properties)
+    val javaConfig = {
+      val m = new JHashMap[String, Any]()
+      config.foreach { case (k, v) => m.put(k, v) }
+      m
+    }
 
     val client =
-      if (config.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
-      else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, config)
+      if (javaConfig.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
+      else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, javaConfig)
 
     new Downloader(client, schemaOutputDir, logger, () => client.close())
   }
