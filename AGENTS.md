@@ -32,6 +32,28 @@ Each class owns one responsibility. `SchemaDownloaderPlugin` wires sbt tasks →
 
 **Never:** force-push or commit to `main`, merge commits in PR branches (rebase only), commit broken code, opportunistic refactors outside scope, mock Schema Registry HTTP where real integration path exists.
 
-## Release
+## Release Process (MANDATORY)
 
-Trunk-based: `v*` tags on `main` or `release/*` branches trigger sbt-ci-release to Sonatype. `release/*` branches cut from `main` for stabilization.
+Trunk-based with release branches. `v*` tags trigger sbt-ci-release to Sonatype via `.github/workflows/release.yml`.
+
+### Minor/Major release (e.g. 1.2.0, 2.0.0)
+
+1. `git checkout -b release/X.Y.0 main` — cut release branch from `main`
+2. `git push -u origin release/X.Y.0`
+3. `git tag vX.Y.0` on the release branch
+4. `git push origin vX.Y.0` — triggers release workflow
+
+### Patch release (e.g. 1.2.1)
+
+1. Fix lands on `main` first (via PR as usual)
+2. `git cherry-pick <fix-sha>` onto `release/X.Y.0`
+3. `git tag vX.Y.1` on the release branch
+4. `git push origin vX.Y.1` — triggers release workflow
+
+### Rules
+
+- **Every minor version gets its own `release/X.Y.0` branch** — no exceptions
+- **Tags ONLY on `release/*` branches or `main`** — release.yml validates this
+- **Branch name must match tag version**: `release/1.2.0` → `v1.2.0`, `v1.2.1`, etc.
+- **Never delete a release tag** after Sonatype deployment starts — creates stuck deployments
+- **Never reuse a version number** — Sonatype Central rejects duplicates permanently
