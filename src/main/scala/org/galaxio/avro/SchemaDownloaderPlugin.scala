@@ -21,7 +21,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       schemaRegistryUrl          := "http://localhost:8081",
       schemaRegistryTargetFolder := sourceDirectory.value / "main" / "avro",
       schemaRegistrySubjects     := Seq(),
-      schemaRegistryCacheSize    := 200,
+      schemaRegistryCacheSize    := Downloader.defaultCacheSize,
       schemaRegistryAuth         := None,
       schemaRegistryProperties   := Map.empty,
     )
@@ -30,8 +30,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
   import autoImport.*
 
   override lazy val projectSettings: Seq[Setting[?]] = defaultSettings ++ Seq(
-    logLevel / schemaRegistryDownload := (logLevel ?? Level.Info).value,
-    Compile / schemaRegistryDownload  := {
+    schemaRegistryDownload           := (Compile / schemaRegistryDownload).value,
+    Compile / schemaRegistryDownload := {
       val logger   = streams.value.log
       val subjects = schemaRegistrySubjects.value
 

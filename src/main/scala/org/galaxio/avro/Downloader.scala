@@ -1,7 +1,6 @@
 package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
-import io.confluent.kafka.schemaregistry.client.rest.entities.Schema
 
 import java.nio.file.{Files, Path}
 import java.util.{Collections, HashMap => JHashMap}
@@ -24,24 +23,26 @@ class Downloader private (client: SchemaRegistryClient, schemaOutputDir: Path, l
   private def fileName(subject: String, version: Int): String =
     s"$subject-$version.${Downloader.avroSchemaFileExtension}"
 
-  private def fetchSchema(subject: RegistrySubject): Schema =
-    subject.version match {
-      case Some(v) =>
-        client.getByVersion(subject.name, v, false)
-      case None    =>
-        val meta   = client.getLatestSchemaMetadata(subject.name)
-        val schema =
-          new Schema(subject.name, meta.getVersion, meta.getId, meta.getSchemaType, Collections.emptyList(), meta.getSchema)
-        schema
-    }
+  private def validateSubjectName(name: String): Unit =
+    require(!name.contains('/') && !name.contains('\\'), s"Subject name must not contain path separators: $name")
 
   def schemaSubjectToFile(subject: RegistrySubject): Try[Path] = Try {
+    validateSubjectName(subject.name)
     val versionLabel = subject.version.map(_.toString).getOrElse("latest")
     logger.info(s"Downloading schema ${subject.name} version=$versionLabel")
-    val schema       = fetchSchema(subject)
+
+    val (version: Int, schemaText: String) = subject.version match {
+      case Some(v) =>
+        val s = client.getByVersion(subject.name, v, false)
+        (s.getVersion: Int, s.getSchema)
+      case None    =>
+        val meta = client.getLatestSchemaMetadata(subject.name)
+        (meta.getVersion: Int, meta.getSchema)
+    }
+
     createOutputDirIfNeeded()
-    val name         = fileName(schema.getSubject, schema.getVersion)
-    val path         = Files.write(schemaOutputDir.resolve(name), schema.getSchema.getBytes())
+    val name = fileName(subject.name, version)
+    val path = Files.write(schemaOutputDir.resolve(name), schemaText.getBytes())
     logger.info(s"Saved schema ${subject.name} to $path")
     path
   }
@@ -50,6 +51,7 @@ class Downloader private (client: SchemaRegistryClient, schemaOutputDir: Path, l
 
 object Downloader {
   val avroSchemaFileExtension = "avsc"
+  val defaultCacheSize        = 200
 
   private[avro] def buildConfig(
       auth: Option[SchemaRegistryAuth],
@@ -68,7 +70,7 @@ object Downloader {
       rootUrl: String,
       schemaOutputDir: Path,
       logger: Logger,
-      cacheSize: Int = 200,
+      cacheSize: Int = defaultCacheSize,
       auth: Option[SchemaRegistryAuth] = None,
       properties: Map[String, String] = Map.empty,
   ): Downloader = {

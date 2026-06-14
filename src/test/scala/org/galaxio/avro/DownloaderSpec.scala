@@ -151,4 +151,22 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     config shouldBe empty
   }
 
+  "Downloader" should "reject subject name with forward slash" in withTempDir { dir =>
+    val client     = mock[SchemaRegistryClient]
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject("a/b", 1))
+
+    result shouldBe a[Failure[_]]
+    result.failed.get.getMessage should include("path separators")
+  }
+
+  it should "reject subject name with backslash" in withTempDir { dir =>
+    val client     = mock[SchemaRegistryClient]
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject("a\\b", 1))
+
+    result shouldBe a[Failure[_]]
+    result.failed.get.getMessage should include("path separators")
+  }
+
 }
