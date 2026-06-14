@@ -1,6 +1,6 @@
 import Dependencies.*
 
-val sbtV = "1.12.11"
+val sbtV = "1.12.12"
 
 lazy val commonSettings = Seq(
   scalaVersion := "2.12.21",

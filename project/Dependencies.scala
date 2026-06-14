@@ -5,7 +5,7 @@ object Dependencies {
     val schReqClient   = "8.2.1"
     val scalatest      = "3.2.19"
     val mockito        = "2.2.1"
-    val testcontainers = "1.21.3"
+    val testcontainers = "1.21.4"
   }
 
   lazy val schemaRegistryClient: ModuleID = "io.confluent" % "kafka-schema-registry-client" % Versions.schReqClient
