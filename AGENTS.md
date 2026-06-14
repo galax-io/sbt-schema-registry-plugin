@@ -1,89 +1,162 @@
-# sbt-schema-registry-plugin — Agent Guide
+# sbt-schema-registry-plugin
 
-sbt plugin for downloading Avro schemas (`.avsc`) from Confluent Schema Registry. Source generation is left to a downstream Avro plugin (e.g. sbt-avrohugger). Published plugin — treat all public sbt keys and task behavior as compatibility-sensitive.
+sbt plugin for downloading Avro schemas (`.avsc`) from Confluent Schema Registry. Source generation is left to a downstream plugin (e.g. sbt-avrohugger). Published plugin — all public sbt keys and task behavior are compatibility-sensitive.
 
 ## Role
 
-Principal Engineer in sbt plugin and Scala tooling development. Strong Scala 2.12, sbt plugin API, Confluent Schema Registry, and Avro expertise. Prefer small, clear, backward-compatible changes unless the task explicitly requires otherwise.
+Scala / sbt plugin engineer. Prefer small, backward-compatible changes. Pure functional style: ADTs, `Either` for errors, effects at edges, immutable data. Inject dependencies, don't construct them.
 
-## Stack
+## Project layout
 
-- Scala 2.12.21, sbt 1.12.11, Java 17+
-- Confluent `kafka-schema-registry-client` 8.2.1
-- ScalaTest 3.2.19 + mockito-scala-scalatest 2.0.0 (mockito-core 5.x) for unit tests
-- Testcontainers 1.21.3 (`org.testcontainers:kafka`) for integration tests in the `it` subproject (`it/test`)
+```
+src/main/scala/org/galaxio/avro/   Plugin source
+  SchemaDownloaderPlugin.scala       sbt keys + task wiring (effect edge)
+  Downloader.scala                   schema fetch logic (pure core)
+  RegistrySubject.scala              subject + version model (ADT)
+  SchemaRegistryAuth.scala           auth abstraction (sealed trait)
+src/test/                          Unit tests — mocked SchemaRegistryClient
+it/                                Integration tests — Testcontainers (requires Docker)
+src/sbt-test/schema-registry/     Scripted E2E tests — real sbt plugin scenarios
+  .fixtures/                         shared test fixtures (symlinked into test dirs)
+project/Dependencies.scala         dependency versions (single source of truth)
+build.sbt                          build definition
+.scalafmt.conf                     formatting config
+```
 
 ## Commands
 
-Format:
-```
-sbt scalafmtAll scalafmtSbt
-```
-
-Verify (default):
-```
-sbt scalafmtCheckAll scalafmtSbtCheck compile test
+```bash
+sbt scalafmtAll scalafmtSbt          # format
+sbt compile test                      # compile + unit tests
+sbt it/test                           # integration tests (Docker required)
+sbt scripted                          # E2E plugin tests
 ```
 
-Full CI (unit tests only, no external services):
-```
-sbt compile test
-```
+## Git hooks (pre-commit)
 
-Integration tests (requires Docker):
-```
-sbt it/test
+Every commit must pass format check and unit tests. Set up:
+
+```bash
+git config core.hooksPath .githooks
 ```
 
-Scripted (sbt plugin integration tests, if present):
+`.githooks/pre-commit`:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+echo ">>> scalafmt check"
+sbt scalafmtCheckAll scalafmtSbtCheck
+echo ">>> unit tests"
+sbt test
 ```
-sbt scripted
+
+If format fails — run `sbt scalafmtAll scalafmtSbt` and re-commit. Never skip hooks (`--no-verify`).
+
+## Trunk-based development
+
+```
+main ─────●────●────●────●────●──── (always releasable)
+           \        \         ↑
+            \        \     merge PR
+          feat/x   fix/y
 ```
 
-## Design Rules
+### Branch lifecycle
 
-**KISS — one responsibility per layer:**
-`SchemaDownloaderPlugin` wires sbt tasks. `Downloader` fetches. `RegistrySubject` models subjects/versions. `SchemaRegistryAuth` handles credentials. Don't merge concerns between layers.
+1. **Branch from `main`** — short-lived feature/fix branches only.
+2. **Develop** — small, semantic commits. Rebase on `main` if behind.
+3. **PR** — CI runs: format → compile → test → it/test. All must pass.
+4. **Merge** — squash or rebase into `main`. No merge commits.
+5. **Delete branch** — immediately after merge.
 
-**DRY — reuse existing abstractions:**
-`RegistrySubject` is the single model for subject + version resolution. `SchemaRegistryAuth` is the single auth abstraction. Don't invent parallel credential or subject types — extend these.
+### Release
 
-**SOLID:** Each class owns one responsibility; extend via new classes/traits rather than modifying existing ones; keep sbt key interfaces narrow; inject dependencies from outside.
+Automated on every merge to `main` via `.github/workflows/ci.yml`:
 
-```scala
-// ✅
-class Downloader(auth: SchemaRegistryAuth)   // inject, don't construct
-// ❌
-class Downloader { val auth = BasicAuth(...) }
+1. CI computes next semver from commit messages (conventional commits):
+   - `feat:` → minor bump
+   - `fix:` → patch bump
+   - `BREAKING CHANGE` / `!:` → major bump
+2. Tags `vX.Y.Z` on `main`
+3. Publishes to Maven Central via `sbt-ci-release`
+4. Creates GitHub Release with changelog
+
+Manual release: push a `vX.Y.Z` tag on `main`. No `release/*` branches unless stabilization needed.
+
+### Commit message format
+
 ```
+<type>(<scope>): <description>
+
+type:  feat | fix | test | refactor | docs | chore
+scope: optional, e.g. downloader, plugin, ci
+```
+
+## Testing strategy
+
+| Layer | What | When | Command |
+|-------|------|------|---------|
+| **Unit** | Mocked `SchemaRegistryClient`, pure logic | Every commit (pre-commit hook) | `sbt test` |
+| **Integration** | Real registry via Testcontainers | CI, local with Docker | `sbt it/test` |
+| **Scripted (E2E)** | Full sbt plugin lifecycle | CI | `sbt scripted` |
+
+Rules:
+- Never mock Schema Registry HTTP where a real integration path exists
+- Unit tests for pure functions — no client needed
+- Integration tests for client interactions — Testcontainers only
+- Scripted tests for sbt task behavior — real `build.sbt` scenarios
+
+## Code style — idiomatic functional Scala
+
+Pure functional core, effects at edges. No imperative Java-isms.
+
+**Error handling:**
+- `Either[DomainError, A]` in core — never throw, never `Try` in new code
+- Sealed `DomainError` ADT per bounded context (e.g. `RegistryError`)
+- `Validated` / `NonEmptyList` when accumulating multiple errors
+- Exceptions only at sbt task boundary (`sys.error` from `Either.Left`)
+
+**Domain modeling:**
+- Sealed traits + case classes for all domain types
+- Smart constructors returning `Either` — never construct invalid values
+- Exhaustive pattern matching — no `default` / `case _` on domain ADTs
+- Prefer `final case class` — avoid `class` unless extending Java interop
+
+**Composition:**
+- `for`-comprehension over `Either` chains
+- `traverse` / `sequence` for `List[Either[E, A]]` → `Either[E, List[A]]`
+- Pure functions: `(Input) => Either[Error, Output]` — no logging, no mutation
+- Higher-order functions for client abstraction: `(String => Either[E, A])` over concrete client types
+
+**Effects and IO:**
+- sbt task layer = effect edge: logging, file I/O, `sys.error`, client lifecycle
+- Core functions return values — never `Unit`, never log
+- `Using.resource` / loan pattern for client lifecycle
+- No `Future` / `Await` without cats-effect `IO.blocking` alternative
+
+**Dependencies:**
+- Inject `SchemaRegistryClient` — don't construct inside core
+- No `new` in core logic — factory methods in companion objects
+
+**General:**
+- No comments unless the WHY is non-obvious
+- No mutable state (`var`, mutable collections)
+- Prefer `List` over `Seq` in domain types (concrete, immutable)
+
+## Issues and PRs
+
+All GitHub issues, PR titles, and commit messages in English.
 
 ## Boundaries
 
-✅ Always:
-- Run `sbt scalafmtAll` before committing
-- Branch from `main`; keep commits semantic and green
-- Preserve backward compatibility for published sbt keys and task behavior
-- Treat `build.sbt`, `project/Dependencies.scala`, `project/plugins.sbt` as source of truth for dependencies
-- Treat `.github/workflows/ci.yml` (PR/branch checks) and `.github/workflows/release.yml` (tag-driven release) as source of truth for CI and release behavior
-
 ⚠️ Ask first:
-- Adding new dependencies or major-version upgrades
+- Adding dependencies or major-version upgrades
 - Changing public sbt key names, types, or task semantics
-- Editing another repository
-- Any change to release or publish workflow
+- Any change to CI/release workflow
 
 🚫 Never:
 - Force-push or commit directly to `main`
-- Add merge commits to PR branches (rebase-oriented history)
-- Commit knowingly broken code to `main`
-- Add opportunistic refactors outside task scope
-- Mock Schema Registry HTTP responses where a real integration path exists
-
-## PR Workflow
-
-1. Branch from `main`.
-2. Run verify commands before commit.
-3. Keep commits semantic and green.
-4. Prefer rebase-oriented history; avoid merge commits in PR branches.
-5. CI in `.github/workflows/ci.yml` is the source of truth for formatting, compile, and tests.
-6. Trunk-based: `main` is trunk, `release/*` branches for stabilization. Releases are tag-driven — push `vX.Y.Z` on `main` or a `release/*` branch; `.github/workflows/release.yml` verifies the tag, runs tests, publishes via sbt-ci-release, and writes notes with git-cliff (`cliff.toml`). Align with this rather than inventing a parallel path.
+- Merge commits in PR branches
+- Commit broken code to `main`
+- Opportunistic refactors outside task scope
+- Skip pre-commit hooks

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo ">>> scalafmt check"
+sbt --client scalafmtCheckAll scalafmtSbtCheck
+
+echo ">>> unit tests"
+sbt --client test
+
+echo ">>> pre-commit passed"
