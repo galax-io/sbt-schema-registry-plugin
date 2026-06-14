@@ -3,7 +3,7 @@ import Dependencies.*
 val sbtV = "1.12.12"
 
 lazy val commonSettings = Seq(
-  scalaVersion := "2.12.21",
+  scalaVersion := "2.13.18",
   scalacOptions ++= Seq(
     "-encoding",
     "UTF-8",

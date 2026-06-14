@@ -2,5 +2,5 @@
 // No registry URL needed — with zero subjects the task returns before it is used.
 lazy val root = (project in file("."))
   .settings(
-    scalaVersion := "2.12.21",
+    scalaVersion := "2.13.18",
   )
