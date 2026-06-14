@@ -12,27 +12,22 @@ import sbt.util.Logger
 import java.io.IOException
 import java.nio.file.{Files, Path}
 import java.util.Collections
-import scala.util.{Failure, Success}
 
 class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
-  private def testLogger: Logger = {
-    val log = mock[Logger]
-    log
-  }
+  private def testLogger: Logger = mock[Logger]
+
+  private def readFile(path: Path): String =
+    new String(Files.readAllBytes(path))
 
   private def withTempDir(test: Path => Any): Unit = {
     val dir = Files.createTempDirectory("downloader-test")
     try test(dir)
-    finally {
-      Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.deleteIfExists)
-    }
+    finally Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.deleteIfExists)
   }
 
-  private def schemaEntity(subject: String, version: Int, schemaStr: String): Schema = {
-    val s = new Schema(subject, version, 1, "AVRO", Collections.emptyList(), schemaStr)
-    s
-  }
+  private def schemaEntity(subject: String, version: Int, schemaStr: String): Schema =
+    new Schema(subject, version, 1, "AVRO", Collections.emptyList(), schemaStr)
 
   "Downloader" should "download schema with specific version" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
@@ -42,10 +37,10 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("test-subject", 2))
 
-    result shouldBe a[Success[_]]
+    result shouldBe a[Right[_, _]]
     val file = dir.resolve("test-subject-2.avsc")
     Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe """{"type":"record","name":"Test","fields":[]}"""
+    readFile(file) shouldBe """{"type":"record","name":"Test","fields":[]}"""
   }
 
   it should "download latest version when version is None" in withTempDir { dir =>
@@ -56,10 +51,10 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("test-subject"))
 
-    result shouldBe a[Success[_]]
+    result shouldBe a[Right[_, _]]
     val file = dir.resolve("test-subject-5.avsc")
     Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe """{"type":"string"}"""
+    readFile(file) shouldBe """{"type":"string"}"""
   }
 
   it should "create output directory if it does not exist" in withTempDir { dir =>
@@ -71,12 +66,12 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, outputDir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("test", 1))
 
-    result shouldBe a[Success[_]]
+    result shouldBe a[Right[_, _]]
     Files.exists(outputDir) shouldBe true
     Files.exists(outputDir.resolve("test-1.avsc")) shouldBe true
   }
 
-  it should "return Failure on network error" in withTempDir { dir =>
+  it should "return Left with SchemaFetchFailed on network error" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     when(client.getByVersion(anyString(), anyInt(), anyBoolean()))
       .thenThrow(new IOException("Connection refused"))
@@ -84,11 +79,12 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("fail-subject", 1))
 
-    result shouldBe a[Failure[_]]
-    result.failed.get.getMessage shouldBe "Connection refused"
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[DownloadError.SchemaFetchFailed]
+    result.left.get.message should include("Connection refused")
   }
 
-  it should "return Failure when schema not found" in withTempDir { dir =>
+  it should "return Left with SchemaFetchFailed when schema not found" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     when(client.getByVersion(anyString(), anyInt(), anyBoolean()))
       .thenThrow(new RuntimeException("Subject not found"))
@@ -96,7 +92,8 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("missing", 1))
 
-    result shouldBe a[Failure[_]]
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[DownloadError.SchemaFetchFailed]
   }
 
   it should "use correct file extension" in withTempDir { dir =>
@@ -116,8 +113,8 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
       Map.empty,
     )
 
-    config.get("basic.auth.credentials.source") shouldBe "USER_INFO"
-    config.get("basic.auth.user.info") shouldBe "alice:s3cret"
+    config("basic.auth.credentials.source") shouldBe "USER_INFO"
+    config("basic.auth.user.info") shouldBe "alice:s3cret"
   }
 
   it should "pass through arbitrary properties unchanged" in {
@@ -129,9 +126,9 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
       ),
     )
 
-    config.get("schema.registry.ssl.truststore.location") shouldBe "/etc/pki/trust.jks"
-    config.get("schema.registry.ssl.truststore.password") shouldBe "changeit"
-    config.size() shouldBe 2
+    config("schema.registry.ssl.truststore.location") shouldBe "/etc/pki/trust.jks"
+    config("schema.registry.ssl.truststore.password") shouldBe "changeit"
+    config.size shouldBe 2
   }
 
   it should "merge auth and properties without key loss" in {
@@ -140,10 +137,10 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
       Map("custom.prop" -> "val"),
     )
 
-    config.get("basic.auth.credentials.source") shouldBe "USER_INFO"
-    config.get("basic.auth.user.info") shouldBe "bob:pw"
-    config.get("custom.prop") shouldBe "val"
-    config.size() shouldBe 3
+    config("basic.auth.credentials.source") shouldBe "USER_INFO"
+    config("basic.auth.user.info") shouldBe "bob:pw"
+    config("custom.prop") shouldBe "val"
+    config.size shouldBe 3
   }
 
   it should "return empty map when no auth and no properties" in {
@@ -151,22 +148,39 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     config shouldBe empty
   }
 
-  "Downloader" should "reject subject name with forward slash" in withTempDir { dir =>
+  "Downloader" should "return Left with InvalidSubjectName for forward slash" in withTempDir { dir =>
     val client     = mock[SchemaRegistryClient]
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("a/b", 1))
 
-    result shouldBe a[Failure[_]]
-    result.failed.get.getMessage should include("path separators")
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[DownloadError.InvalidSubjectName]
+    result.left.get.message should include("path separators")
   }
 
-  it should "reject subject name with backslash" in withTempDir { dir =>
+  it should "return Left with InvalidSubjectName for backslash" in withTempDir { dir =>
     val client     = mock[SchemaRegistryClient]
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("a\\b", 1))
 
-    result shouldBe a[Failure[_]]
-    result.failed.get.getMessage should include("path separators")
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[DownloadError.InvalidSubjectName]
+    result.left.get.message should include("path separators")
+  }
+
+  it should "return Left with WriteError when output path is not writable" in withTempDir { dir =>
+    val blocker = dir.resolve("blocker")
+    Files.createFile(blocker)
+
+    val client = mock[SchemaRegistryClient]
+    val schema = schemaEntity("test", 1, """{"type":"null"}""")
+    when(client.getByVersion("test", 1, false)).thenReturn(schema)
+
+    val downloader = new Downloader(client, blocker.resolve("sub"), testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject("test", 1))
+
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[DownloadError.WriteError]
   }
 
   it should "be safe to call close multiple times" in withTempDir { dir =>
@@ -187,7 +201,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("my-subject"))
 
-    result shouldBe a[Success[_]]
+    result shouldBe a[Right[_, _]]
     val file = dir.resolve("my-subject-7.avsc")
     Files.exists(file) shouldBe true
     Files.exists(dir.resolve("my-subject-latest.avsc")) shouldBe false
@@ -201,10 +215,9 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val downloader = new Downloader(client, dir, testLogger)
     val result     = downloader.schemaSubjectToFile(RegistrySubject("empty-schema", 1))
 
-    result shouldBe a[Success[_]]
+    result shouldBe a[Right[_, _]]
     val file = dir.resolve("empty-schema-1.avsc")
     Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe ""
+    readFile(file) shouldBe ""
   }
-
 }

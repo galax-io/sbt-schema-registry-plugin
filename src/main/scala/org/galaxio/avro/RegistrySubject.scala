@@ -1,8 +1,15 @@
 package org.galaxio.avro
 
-final case class RegistrySubject(name: String, version: Option[Int] = None)
+sealed trait RegistrySubject {
+  def name: String
+}
 
 object RegistrySubject {
-  def apply(name: String, version: Int): RegistrySubject = RegistrySubject(name, Some(version))
-  def latest(name: String): RegistrySubject              = RegistrySubject(name, None)
+  final case class Pinned(name: String, version: Int) extends RegistrySubject
+  final case class Latest(name: String)               extends RegistrySubject
+
+  def apply(name: String, version: Int): RegistrySubject                = Pinned(name, version)
+  def apply(name: String, version: Option[Int] = None): RegistrySubject =
+    version.fold(latest(name))(Pinned(name, _))
+  def latest(name: String): RegistrySubject                             = Latest(name)
 }
