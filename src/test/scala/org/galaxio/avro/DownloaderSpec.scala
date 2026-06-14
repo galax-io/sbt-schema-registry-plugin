@@ -169,4 +169,42 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     result.failed.get.getMessage should include("path separators")
   }
 
+  it should "close should be safe to call multiple times" in withTempDir { dir =>
+    val client     = mock[SchemaRegistryClient]
+    val downloader = new Downloader(client, dir, testLogger)
+
+    noException should be thrownBy {
+      downloader.close()
+      downloader.close()
+    }
+  }
+
+  it should "latest download should use resolved version number in filename" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val meta   = new SchemaMetadata(1, 7, "AVRO", Collections.emptyList(), """{"type":"int"}""")
+    when(client.getLatestSchemaMetadata("my-subject")).thenReturn(meta)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("my-subject"))
+
+    result shouldBe a[Success[_]]
+    val file = dir.resolve("my-subject-7.avsc")
+    Files.exists(file) shouldBe true
+    Files.exists(dir.resolve("my-subject-latest.avsc")) shouldBe false
+  }
+
+  it should "empty schema body should write zero-byte file" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val schema = schemaEntity("empty-schema", 1, "")
+    when(client.getByVersion("empty-schema", 1, false)).thenReturn(schema)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject("empty-schema", 1))
+
+    result shouldBe a[Success[_]]
+    val file = dir.resolve("empty-schema-1.avsc")
+    Files.exists(file) shouldBe true
+    new String(Files.readAllBytes(file)) shouldBe ""
+  }
+
 }
