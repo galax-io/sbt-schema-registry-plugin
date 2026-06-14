@@ -15,12 +15,8 @@ import sbt.util.Logger
 
 import java.nio.file.{Files, Path}
 import java.util.Collections
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
-/** Integration tests for [[Downloader]] using real Confluent Schema Registry and Kafka containers.
-  *
-  * Run with: sbt it/test (requires Docker)
-  */
 class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
 
   private var network: Network                           = _
@@ -50,16 +46,16 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
   }
 
   override def afterAll(): Unit = {
-    try { if (sr != null) sr.stop() }
-    catch { case _: Exception => }
-    try { if (kafka != null) kafka.stop() }
-    catch { case _: Exception => }
-    try { if (network != null) network.close() }
-    catch { case _: Exception => }
+    Option(sr).foreach(c => Try(c.stop()))
+    Option(kafka).foreach(c => Try(c.stop()))
+    Option(network).foreach(c => Try(c.close()))
   }
 
   private def avroSchema(json: String): AvroSchema =
     new AvroSchema(new Schema.Parser().parse(json))
+
+  private def readFile(path: Path): String =
+    new String(Files.readAllBytes(path))
 
   private val silentLogger: Logger = Logger.Null
 
@@ -73,54 +69,53 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     try test(downloader)
     finally downloader.close()
 
-  "Downloader (integration)" should "download schema by specific version" in withTempDir { dir =>
+  private def withFixture(test: (Path, Downloader) => Any): Unit =
+    withTempDir { dir =>
+      withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+        test(dir, downloader)
+      }
+    }
+
+  "Downloader (integration)" should "download schema by specific version" in withFixture { (dir, downloader) =>
     val subject    = "it-specific"
     val schemaJson =
       """{"type":"record","name":"ItSpecific","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
-      val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
+    val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
 
-      result shouldBe a[Success[_]]
-      val file = dir.resolve(s"$subject-1.avsc")
-      Files.exists(file) shouldBe true
-      new String(Files.readAllBytes(file)) shouldBe schemaJson
-    }
+    result shouldBe a[Success[_]]
+    val file = dir.resolve(s"$subject-1.avsc")
+    Files.exists(file) shouldBe true
+    readFile(file) shouldBe schemaJson
   }
 
-  it should "download latest schema version and write versioned filename" in withTempDir { dir =>
+  it should "download latest schema version and write versioned filename" in withFixture { (dir, downloader) =>
     val subject    = "it-latest"
     val schemaJson = """{"type":"record","name":"ItLatest","namespace":"org.galaxio","fields":[{"name":"v","type":"string"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
-      val result = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
+    val result = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
 
-      result shouldBe a[Success[_]]
-      val file = dir.resolve(s"$subject-1.avsc")
-      Files.exists(file) shouldBe true
-      new String(Files.readAllBytes(file)) shouldBe schemaJson
-    }
+    result shouldBe a[Success[_]]
+    val file = dir.resolve(s"$subject-1.avsc")
+    Files.exists(file) shouldBe true
+    readFile(file) shouldBe schemaJson
   }
 
-  it should "return Failure for missing subject" in withTempDir { dir =>
-    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
-      val result = downloader.schemaSubjectToFile(RegistrySubject("does-not-exist", 1))
-      result shouldBe a[Failure[_]]
-    }
+  it should "return Failure for missing subject" in withFixture { (_, downloader) =>
+    val result = downloader.schemaSubjectToFile(RegistrySubject("does-not-exist", 1))
+    result shouldBe a[Failure[_]]
   }
 
-  it should "return Failure for missing version of existing subject" in withTempDir { dir =>
+  it should "return Failure for missing version of existing subject" in withFixture { (_, downloader) =>
     val subject    = "it-version-miss"
     val schemaJson =
       """{"type":"record","name":"ItVersionMiss","namespace":"org.galaxio","fields":[{"name":"x","type":"int"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
-      val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 99))
-      result shouldBe a[Failure[_]]
-    }
+    val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 99))
+    result shouldBe a[Failure[_]]
   }
 
   it should "produce identical output files across two downloads" in withTempDir { dir =>
@@ -140,7 +135,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
 
         r1 shouldBe a[Success[_]]
         r2 shouldBe a[Success[_]]
-        new String(Files.readAllBytes(r1.get)) shouldBe new String(Files.readAllBytes(r2.get))
+        readFile(r1.get) shouldBe readFile(r2.get)
       }
     }
   }
@@ -159,7 +154,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       result shouldBe a[Success[_]]
       val file = dir.resolve(s"$subject-1.avsc")
       Files.exists(file) shouldBe true
-      new String(Files.readAllBytes(file)) shouldBe schemaJson
+      readFile(file) shouldBe schemaJson
     }
   }
 
@@ -181,13 +176,13 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       latestResult shouldBe a[Success[_]]
       val latestFile = dir.resolve(s"$subject-3.avsc")
       Files.exists(latestFile) shouldBe true
-      new String(Files.readAllBytes(latestFile)) shouldBe v3Json
+      readFile(latestFile) shouldBe v3Json
 
       val pinnedResult = downloader.schemaSubjectToFile(RegistrySubject(subject, 2))
       pinnedResult shouldBe a[Success[_]]
       val pinnedFile = dir.resolve(s"$subject-2.avsc")
       Files.exists(pinnedFile) shouldBe true
-      new String(Files.readAllBytes(pinnedFile)) shouldBe v2Json
+      readFile(pinnedFile) shouldBe v2Json
     }
 
     val v4Json =
@@ -201,7 +196,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       latestV4Result shouldBe a[Success[_]]
       val latestV4File = dir2.resolve(s"$subject-4.avsc")
       Files.exists(latestV4File) shouldBe true
-      new String(Files.readAllBytes(latestV4File)) shouldBe v4Json
+      readFile(latestV4File) shouldBe v4Json
     }
   }
 
@@ -224,7 +219,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       result shouldBe a[Success[_]]
       val file = dir.resolve(s"$mainSubject-1.avsc")
       Files.exists(file) shouldBe true
-      new String(Files.readAllBytes(file)) shouldBe mainJson
+      readFile(file) shouldBe mainJson
     }
   }
 
@@ -244,7 +239,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       Files.exists(deepDir) shouldBe true
       val file = deepDir.resolve(s"$subject-1.avsc")
       Files.exists(file) shouldBe true
-      new String(Files.readAllBytes(file)) shouldBe schemaJson
+      readFile(file) shouldBe schemaJson
     }
   }
 
@@ -260,11 +255,11 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
 
       val file = dir.resolve(s"$subject-1.avsc")
       Files.write(file, "corrupted".getBytes())
-      new String(Files.readAllBytes(file)) shouldBe "corrupted"
+      readFile(file) shouldBe "corrupted"
 
       val second = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
       second shouldBe a[Success[_]]
-      new String(Files.readAllBytes(file)) shouldBe schemaJson
+      readFile(file) shouldBe schemaJson
     }
   }
 }
