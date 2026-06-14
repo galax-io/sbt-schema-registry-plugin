@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreCommit": [
+      {
+        "command": "sbt --client scalafmtCheckAll scalafmtSbtCheck compile test",
+        "description": "Format check + compile + unit tests"
+      }
+    ]
+  }
+}

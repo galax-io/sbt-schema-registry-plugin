@@ -9,18 +9,11 @@ Scala / sbt plugin engineer. Prefer small, backward-compatible changes. Pure fun
 ## Project layout
 
 ```
-src/main/scala/org/galaxio/avro/   Plugin source
-  SchemaDownloaderPlugin.scala       sbt keys + task wiring (effect edge)
-  Downloader.scala                   schema fetch logic (pure core)
-  RegistrySubject.scala              subject + version model (ADT)
-  SchemaRegistryAuth.scala           auth abstraction (sealed trait)
-src/test/                          Unit tests — mocked SchemaRegistryClient
-it/                                Integration tests — Testcontainers (requires Docker)
-src/sbt-test/schema-registry/     Scripted E2E tests — real sbt plugin scenarios
-  .fixtures/                         shared test fixtures (symlinked into test dirs)
-project/Dependencies.scala         dependency versions (single source of truth)
-build.sbt                          build definition
-.scalafmt.conf                     formatting config
+src/main/scala/org/galaxio/avro/   plugin source (effect edge + pure core)
+src/test/                          unit tests (mocked client)
+it/                                integration tests (Testcontainers, Docker)
+src/sbt-test/schema-registry/     scripted E2E tests
+  .fixtures/                         shared fixtures (symlinked)
 ```
 
 ## Commands
@@ -32,23 +25,9 @@ sbt it/test                           # integration tests (Docker required)
 sbt scripted                          # E2E plugin tests
 ```
 
-## Git hooks (pre-commit)
+## Pre-commit hook
 
-Every commit must pass format check and unit tests. Set up:
-
-```bash
-git config core.hooksPath .githooks
-```
-
-`.githooks/pre-commit`:
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-echo ">>> scalafmt check + compile + unit tests"
-sbt --client scalafmtCheckAll scalafmtSbtCheck compile test
-```
-
-If format fails — run `sbt scalafmtAll scalafmtSbt` and re-commit. Never skip hooks (`--no-verify`).
+`.claude/settings.json` configures a PreCommit hook: `sbt --client scalafmtCheckAll scalafmtSbtCheck compile test`. Runs automatically before every commit. If format fails — run `sbt scalafmtAll scalafmtSbt` and re-commit.
 
 ## Trunk-based development
 
