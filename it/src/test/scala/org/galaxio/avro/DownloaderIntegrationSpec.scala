@@ -79,12 +79,14 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       """{"type":"record","name":"ItSpecific","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    val result = Downloader(registryUrl, dir, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 1))
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
 
-    result shouldBe a[Success[_]]
-    val file = dir.resolve(s"$subject-1.avsc")
-    Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe schemaJson
+      result shouldBe a[Success[_]]
+      val file = dir.resolve(s"$subject-1.avsc")
+      Files.exists(file) shouldBe true
+      new String(Files.readAllBytes(file)) shouldBe schemaJson
+    }
   }
 
   it should "download latest schema version and write versioned filename" in withTempDir { dir =>
@@ -92,17 +94,21 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     val schemaJson = """{"type":"record","name":"ItLatest","namespace":"org.galaxio","fields":[{"name":"v","type":"string"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    val result = Downloader(registryUrl, dir, silentLogger).schemaSubjectToFile(RegistrySubject.latest(subject))
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
 
-    result shouldBe a[Success[_]]
-    val file = dir.resolve(s"$subject-1.avsc")
-    Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe schemaJson
+      result shouldBe a[Success[_]]
+      val file = dir.resolve(s"$subject-1.avsc")
+      Files.exists(file) shouldBe true
+      new String(Files.readAllBytes(file)) shouldBe schemaJson
+    }
   }
 
   it should "return Failure for missing subject" in withTempDir { dir =>
-    val result = Downloader(registryUrl, dir, silentLogger).schemaSubjectToFile(RegistrySubject("does-not-exist", 1))
-    result shouldBe a[Failure[_]]
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject("does-not-exist", 1))
+      result shouldBe a[Failure[_]]
+    }
   }
 
   it should "return Failure for missing version of existing subject" in withTempDir { dir =>
@@ -111,8 +117,10 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       """{"type":"record","name":"ItVersionMiss","namespace":"org.galaxio","fields":[{"name":"x","type":"int"}]}"""
     registryClient.register(subject, avroSchema(schemaJson))
 
-    val result = Downloader(registryUrl, dir, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 99))
-    result shouldBe a[Failure[_]]
+    withDownloader(Downloader(registryUrl, dir, silentLogger)) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 99))
+      result shouldBe a[Failure[_]]
+    }
   }
 
   it should "produce identical output files across two downloads" in withTempDir { dir =>
@@ -125,12 +133,16 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     Files.createDirectories(dir1)
     Files.createDirectories(dir2)
 
-    val r1 = Downloader(registryUrl, dir1, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 1))
-    val r2 = Downloader(registryUrl, dir2, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 1))
+    withDownloader(Downloader(registryUrl, dir1, silentLogger)) { d1 =>
+      withDownloader(Downloader(registryUrl, dir2, silentLogger)) { d2 =>
+        val r1 = d1.schemaSubjectToFile(RegistrySubject(subject, 1))
+        val r2 = d2.schemaSubjectToFile(RegistrySubject(subject, 1))
 
-    r1 shouldBe a[Success[_]]
-    r2 shouldBe a[Success[_]]
-    new String(Files.readAllBytes(r1.get)) shouldBe new String(Files.readAllBytes(r2.get))
+        r1 shouldBe a[Success[_]]
+        r2 shouldBe a[Success[_]]
+        new String(Files.readAllBytes(r1.get)) shouldBe new String(Files.readAllBytes(r2.get))
+      }
+    }
   }
 
   it should "download successfully when BasicAuth is configured against non-auth registry" in withTempDir { dir =>
@@ -225,13 +237,15 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     val deepDir = dir.resolve("nested").resolve("deep").resolve("output")
     Files.exists(deepDir) shouldBe false
 
-    val result = Downloader(registryUrl, deepDir, silentLogger).schemaSubjectToFile(RegistrySubject(subject, 1))
+    withDownloader(Downloader(registryUrl, deepDir, silentLogger)) { downloader =>
+      val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 1))
 
-    result shouldBe a[Success[_]]
-    Files.exists(deepDir) shouldBe true
-    val file = deepDir.resolve(s"$subject-1.avsc")
-    Files.exists(file) shouldBe true
-    new String(Files.readAllBytes(file)) shouldBe schemaJson
+      result shouldBe a[Success[_]]
+      Files.exists(deepDir) shouldBe true
+      val file = deepDir.resolve(s"$subject-1.avsc")
+      Files.exists(file) shouldBe true
+      new String(Files.readAllBytes(file)) shouldBe schemaJson
+    }
   }
 
   it should "overwrite corrupted file on re-download" in withTempDir { dir =>
