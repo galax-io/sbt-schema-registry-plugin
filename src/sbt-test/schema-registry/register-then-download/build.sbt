@@ -9,8 +9,8 @@ lazy val root = (project in file("."))
     ),
     schemaRegistrySubjects += RegistrySubject.latest("it.e2e.RoundTrip"),
     TaskKey[Unit]("checkRoundTrip") := {
-      val original   = IO.read(baseDirectory.value / "src/main/avro/RoundTrip.avsc")
-      val downloaded = IO.read(baseDirectory.value / "src/main/avro/it.e2e.RoundTrip-1.avsc")
+      val original   = IO.read(baseDirectory.value / "src/main/avro/RoundTrip.avsc").trim
+      val downloaded = IO.read(baseDirectory.value / "src/main/avro/it.e2e.RoundTrip-1.avsc").trim
       if (original != downloaded)
         sys.error(s"Content mismatch:\n  original:   $original\n  downloaded: $downloaded")
     },
