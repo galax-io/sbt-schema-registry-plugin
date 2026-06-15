@@ -9,21 +9,24 @@ object SchemaDownloaderPlugin extends AutoPlugin {
   override def trigger = allRequirements
 
   object autoImport {
-    val schemaRegistryDownload     = taskKey[Unit]("Download schemas from schema registry")
-    val schemaRegistryUrl          = settingKey[String]("URL of the schema registry")
-    val schemaRegistryTargetFolder = settingKey[File]("Output directory for downloaded schemas")
-    val schemaRegistrySubjects     = settingKey[Seq[RegistrySubject]]("Schema subjects to download")
-    val schemaRegistryCacheSize    = settingKey[Int]("Schema registry client cache size")
-    val schemaRegistryAuth         = settingKey[Option[SchemaRegistryAuth]]("Schema registry authentication")
-    val schemaRegistryProperties   = settingKey[Map[String, String]]("Additional schema registry client properties")
+    val schemaRegistryDownload      = taskKey[Unit]("Download schemas from schema registry")
+    val schemaRegistryRegister      = taskKey[Unit]("Register (push) schemas to schema registry")
+    val schemaRegistryUrl           = settingKey[String]("URL of the schema registry")
+    val schemaRegistryTargetFolder  = settingKey[File]("Output directory for downloaded schemas")
+    val schemaRegistrySubjects      = settingKey[Seq[RegistrySubject]]("Schema subjects to download")
+    val schemaRegistryRegistrations = settingKey[Seq[RegistryRegistration]]("Schema registrations to push")
+    val schemaRegistryCacheSize     = settingKey[Int]("Schema registry client cache size")
+    val schemaRegistryAuth          = settingKey[Option[SchemaRegistryAuth]]("Schema registry authentication")
+    val schemaRegistryProperties    = settingKey[Map[String, String]]("Additional schema registry client properties")
 
     lazy val defaultSettings: Seq[Setting[?]] = Seq(
-      schemaRegistryUrl          := "http://localhost:8081",
-      schemaRegistryTargetFolder := sourceDirectory.value / "main" / "avro",
-      schemaRegistrySubjects     := Seq(),
-      schemaRegistryCacheSize    := Downloader.defaultCacheSize,
-      schemaRegistryAuth         := None,
-      schemaRegistryProperties   := Map.empty,
+      schemaRegistryUrl           := "http://localhost:8081",
+      schemaRegistryTargetFolder  := sourceDirectory.value / "main" / "avro",
+      schemaRegistrySubjects      := Seq(),
+      schemaRegistryRegistrations := Seq(),
+      schemaRegistryCacheSize     := Downloader.defaultCacheSize,
+      schemaRegistryAuth          := None,
+      schemaRegistryProperties    := Map.empty,
     )
   }
 
@@ -62,6 +65,34 @@ object SchemaDownloaderPlugin extends AutoPlugin {
             }
             sys.error(s"Failed to download ${failures.size} schema(s)")
           }
+        }
+      }
+    },
+    schemaRegistryRegister           := (Compile / schemaRegistryRegister).value,
+    Compile / schemaRegistryRegister := {
+      val logger        = streams.value.log
+      val registrations = schemaRegistryRegistrations.value.toList
+
+      if (registrations.isEmpty) {
+        logger.warn("No schema registrations configured. Set schemaRegistryRegistrations to register schemas.")
+      } else {
+        val client = Downloader.buildClient(
+          rootUrl = schemaRegistryUrl.value,
+          cacheSize = schemaRegistryCacheSize.value,
+          auth = schemaRegistryAuth.value,
+          properties = schemaRegistryProperties.value,
+        )
+        Using.resource(client) { c =>
+          val results             = Registrar.registerAll(c, registrations)
+          val (errors, successes) = Registrar.partitionResults(results)
+
+          successes.foreach(r => logger.info(s"Registered ${r.subject} → schema ID ${r.schemaId}"))
+          errors.foreach { e =>
+            logger.error(e.message)
+            e.cause.foreach(logger.trace(_))
+          }
+
+          if (errors.nonEmpty) sys.error(s"${errors.size} registration(s) failed")
         }
       }
     },

@@ -8,7 +8,7 @@ import java.util.{Collections, HashMap => JHashMap}
 import scala.util.Try
 
 final class Downloader private[avro] (
-    client: SchemaRegistryClient,
+    private[avro] val client: SchemaRegistryClient,
     schemaOutputDir: Path,
     logger: Logger,
     closeAction: () => Unit = () => (),
@@ -76,6 +76,23 @@ object Downloader {
     properties ++ authEntries
   }
 
+  def buildClient(
+      rootUrl: String,
+      cacheSize: Int = defaultCacheSize,
+      auth: Option[SchemaRegistryAuth] = None,
+      properties: Map[String, String] = Map.empty,
+  ): CachedSchemaRegistryClient = {
+    val config     = buildConfig(auth, properties)
+    val javaConfig = {
+      val m = new JHashMap[String, Any]()
+      config.foreach { case (k, v) => m.put(k, v) }
+      m
+    }
+
+    if (javaConfig.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
+    else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, javaConfig)
+  }
+
   def apply(
       rootUrl: String,
       schemaOutputDir: Path,
@@ -84,17 +101,7 @@ object Downloader {
       auth: Option[SchemaRegistryAuth] = None,
       properties: Map[String, String] = Map.empty,
   ): Downloader = {
-    val config     = buildConfig(auth, properties)
-    val javaConfig = {
-      val m = new JHashMap[String, Any]()
-      config.foreach { case (k, v) => m.put(k, v) }
-      m
-    }
-
-    val client =
-      if (javaConfig.isEmpty) new CachedSchemaRegistryClient(rootUrl, cacheSize)
-      else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, javaConfig)
-
+    val client = buildClient(rootUrl, cacheSize, auth, properties)
     new Downloader(client, schemaOutputDir, logger, () => client.close())
   }
 }

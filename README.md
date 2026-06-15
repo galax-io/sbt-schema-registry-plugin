@@ -94,6 +94,44 @@ The build will fail if any schema download fails.
 | `schemaRegistryAuth`         | Authentication credentials               | `None`                 |
 | `schemaRegistryProperties`   | Additional schema registry client config | `Map.empty`            |
 
+## Schema Registration (Push)
+
+Register (push) local schema files to Schema Registry:
+
+```sbt
+import org.galaxio.avro.{RegistryRegistration, SchemaType}
+
+schemaRegistryRegistrations := Seq(
+  RegistryRegistration("user-value", baseDirectory.value / "src/main/avro/User.avsc"),
+  RegistryRegistration("order-value", baseDirectory.value / "src/main/avro/Order.avsc"),
+)
+```
+
+```bash
+sbt "Compile / schemaRegistryRegister"
+```
+
+### Schema Types
+
+The default schema type is Avro. For Protobuf or JSON Schema, specify the type explicitly:
+
+```sbt
+RegistryRegistration("user-value", file("src/main/avro/User.proto"), SchemaType.Protobuf)
+RegistryRegistration("user-value", file("src/main/avro/User.json"), SchemaType.Json)
+```
+
+> **Note**: Protobuf and JSON Schema require the corresponding Confluent provider dependencies
+> (`kafka-protobuf-provider` or `kafka-json-schema-provider`) on the sbt classpath.
+
+### Registration Settings
+
+| Parameter                     | Description                             | Default    |
+|-------------------------------|-----------------------------------------|------------|
+| `schemaRegistryRegistrations` | List of subject-to-file schema mappings | `Seq()`    |
+
+All connection settings (`schemaRegistryUrl`, `schemaRegistryAuth`, `schemaRegistryProperties`) are
+shared between download and registration tasks.
+
 ## Workflow Integration
 
 ### Run manually
