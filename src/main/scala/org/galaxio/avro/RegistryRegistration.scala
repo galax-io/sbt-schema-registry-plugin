@@ -6,4 +6,5 @@ final case class RegistryRegistration(
     subject: String,
     file: File,
     schemaType: SchemaType = SchemaType.Avro,
+    references: List[SchemaReference] = Nil,
 )

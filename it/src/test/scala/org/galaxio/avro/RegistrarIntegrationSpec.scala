@@ -49,8 +49,8 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
     Option(network).foreach(c => Try(c.close()))
   }
 
-  private def tempSchemaFile(content: String): File = {
-    val f = File.createTempFile("schema-it-", ".avsc")
+  private def tempSchemaFile(content: String, suffix: String = ".avsc"): File = {
+    val f = File.createTempFile("schema-it-", suffix)
     f.deleteOnExit()
     Files.write(f.toPath, content.getBytes("UTF-8"))
     f
@@ -113,6 +113,109 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
     results should have size 1
     results.head shouldBe a[Left[_, _]]
     results.head.left.get shouldBe a[RegistryError.RegistrationFailed]
+  }
+
+  it should "register a Protobuf schema with correct type" in {
+    val protoContent =
+      """syntax = "proto3";
+        |
+        |message ProtoRegTest {
+        |  string value = 1;
+        |}""".stripMargin
+    val file = tempSchemaFile(protoContent, ".proto")
+
+    val results = Registrar.registerAll(
+      registryClient,
+      List(RegistryRegistration("it-register-proto", file, SchemaType.Protobuf)),
+    )
+
+    results should have size 1
+    results.head shouldBe a[Right[_, _]]
+    val registered = results.head.toOption.get
+    registered.subject shouldBe "it-register-proto"
+    registered.schemaId should be > 0
+
+    val meta = registryClient.getLatestSchemaMetadata("it-register-proto")
+    meta.getSchemaType shouldBe "PROTOBUF"
+  }
+
+  it should "register a JSON Schema with correct type" in {
+    val jsonContent =
+      """{
+        |  "type": "object",
+        |  "properties": {
+        |    "value": { "type": "string" }
+        |  }
+        |}""".stripMargin
+    val file = tempSchemaFile(jsonContent, ".json")
+
+    val results = Registrar.registerAll(
+      registryClient,
+      List(RegistryRegistration("it-register-json", file, SchemaType.Json)),
+    )
+
+    results should have size 1
+    results.head shouldBe a[Right[_, _]]
+    val registered = results.head.toOption.get
+    registered.subject shouldBe "it-register-json"
+    registered.schemaId should be > 0
+
+    val meta = registryClient.getLatestSchemaMetadata("it-register-json")
+    meta.getSchemaType shouldBe "JSON"
+  }
+
+  it should "register Protobuf schema with references" in {
+    val baseContent =
+      """syntax = "proto3";
+        |message BaseMsg {
+        |  string id = 1;
+        |}""".stripMargin
+    val baseFile = tempSchemaFile(baseContent, ".proto")
+    val baseRegs = Registrar.registerAll(
+      registryClient,
+      List(RegistryRegistration("it-proto-ref-base", baseFile, SchemaType.Protobuf)),
+    )
+    baseRegs.head shouldBe a[Right[_, _]]
+
+    val depContent =
+      """syntax = "proto3";
+        |import "BaseMsg.proto";
+        |message DepMsg {
+        |  string value = 1;
+        |}""".stripMargin
+    val depFile = tempSchemaFile(depContent, ".proto")
+    val depRefs = List(SchemaReference("BaseMsg.proto", "it-proto-ref-base", 1))
+    val depRegs = Registrar.registerAll(
+      registryClient,
+      List(RegistryRegistration("it-proto-ref-dep", depFile, SchemaType.Protobuf, depRefs)),
+    )
+    depRegs.head shouldBe a[Right[_, _]]
+  }
+
+  it should "register JSON Schema with references" in {
+    val baseContent = """{"type":"object","properties":{"id":{"type":"integer"}}}"""
+    val baseFile    = tempSchemaFile(baseContent, ".json")
+    val baseRegs = Registrar.registerAll(
+      registryClient,
+      List(RegistryRegistration("it-json-ref-base", baseFile, SchemaType.Json)),
+    )
+    baseRegs.head shouldBe a[Right[_, _]]
+
+    val depContent =
+      """{
+        |  "type": "object",
+        |  "properties": {
+        |    "base": { "$ref": "base.json" },
+        |    "value": { "type": "string" }
+        |  }
+        |}""".stripMargin
+    val depFile = tempSchemaFile(depContent, ".json")
+    val depRefs = List(SchemaReference("base.json", "it-json-ref-base", 1))
+    val depRegs = Registrar.registerAll(
+      registryClient,
+      List(RegistryRegistration("it-json-ref-dep", depFile, SchemaType.Json, depRefs)),
+    )
+    depRegs.head shouldBe a[Right[_, _]]
   }
 
   it should "support round-trip: register then download matches" in withTempDir { dir =>

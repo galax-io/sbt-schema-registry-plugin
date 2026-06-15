@@ -13,7 +13,7 @@ object CompatibilityChecker {
   ): CompatibilityResult = {
     val result = for {
       content  <- Registrar.readSchemaFile(reg)
-      parsed   <- Registrar.buildParsedSchema(reg.subject, content, reg.schemaType)
+      parsed   <- Registrar.buildParsedSchema(reg.subject, content, reg.schemaType, reg.references)
       messages <- Try(client.testCompatibilityVerbose(reg.subject, parsed).asScala.toList).toEither.left
                     .map(RegistryError.CompatibilityCheckFailed(reg.subject, _))
     } yield messages

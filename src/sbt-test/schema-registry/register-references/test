@@ -1,0 +1,2 @@
+# Register a base schema and a dependent schema with references.
+> Compile / schemaRegistryRegister

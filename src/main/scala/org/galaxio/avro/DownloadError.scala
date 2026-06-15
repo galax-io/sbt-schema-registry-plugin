@@ -22,4 +22,8 @@ object DownloadError {
     val message: String                   = s"Failed to write schema to $path: ${error.getMessage}"
     override val cause: Option[Throwable] = Some(error)
   }
+
+  final case class UnsupportedSchemaType(schemaType: String, subject: String) extends DownloadError {
+    val message: String = s"Unsupported schema type '$schemaType' for subject $subject"
+  }
 }

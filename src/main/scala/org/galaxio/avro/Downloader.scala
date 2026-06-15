@@ -19,39 +19,49 @@ final class Downloader private[avro] (
 
   def schemaSubjectToFile(subject: RegistrySubject): Either[DownloadError, Path] =
     for {
-      _        <- validateSubjectName(subject.name)
-      resolved <- fetchSchema(subject)
-      path     <- writeSchema(subject.name, resolved)
+      _                  <- validateSubjectName(subject.name)
+      resolved           <- fetchSchema(subject)
+      (version, body, st) = resolved
+      path               <- writeSchema(subject.name, version, body, st)
     } yield path
 
   private def validateSubjectName(name: String): Either[DownloadError, Unit] =
     if (name.contains('/') || name.contains('\\')) Left(DownloadError.InvalidSubjectName(name))
     else Right(())
 
-  private def fetchSchema(subject: RegistrySubject): Either[DownloadError, (Int, String)] = {
+  private def fetchSchema(subject: RegistrySubject): Either[DownloadError, (Int, String, SchemaType)] = {
     logger.info(s"Downloading schema ${subject.name} version=${versionLabel(subject)}")
-    Try {
-      subject match {
-        case RegistrySubject.Pinned(name, version) =>
-          val s = client.getByVersion(name, version, false)
-          (s.getVersion: Int, s.getSchema)
-        case RegistrySubject.Latest(name)          =>
-          val meta = client.getLatestSchemaMetadata(name)
-          (meta.getVersion: Int, meta.getSchema)
-      }
-    }.toEither.left.map(DownloadError.SchemaFetchFailed(subject.name, _))
+    for {
+      raw <- Try {
+               subject match {
+                 case RegistrySubject.Pinned(name, version) =>
+                   val s = client.getByVersion(name, version, false)
+                   (s.getVersion: Int, s.getSchema, s.getSchemaType)
+                 case RegistrySubject.Latest(name)          =>
+                   val meta = client.getLatestSchemaMetadata(name)
+                   (meta.getVersion: Int, meta.getSchema, meta.getSchemaType)
+               }
+             }.toEither.left.map(DownloadError.SchemaFetchFailed(subject.name, _))
+      st  <- SchemaType
+               .fromRegistryLabel(raw._3)
+               .left
+               .map(_ => DownloadError.UnsupportedSchemaType(Option(raw._3).getOrElse(""), subject.name))
+    } yield (raw._1, raw._2, st)
   }
 
-  private def writeSchema(subjectName: String, resolved: (Int, String)): Either[DownloadError, Path] = {
-    val (version, body) = resolved
+  private def writeSchema(
+      subjectName: String,
+      version: Int,
+      body: String,
+      schemaType: SchemaType,
+  ): Either[DownloadError, Path] =
     Try {
       if (Files.notExists(schemaOutputDir)) Files.createDirectories(schemaOutputDir)
-      val fileName = s"$subjectName-$version.${Downloader.avroSchemaFileExtension}"
+      val fileName = s"$subjectName-$version.${schemaType.extension}"
       val path     = Files.write(schemaOutputDir.resolve(fileName), body.getBytes())
       logger.info(s"Saved schema $subjectName to $path")
       path
     }.toEither.left.map(DownloadError.WriteError(schemaOutputDir, _))
-  }
 
   private def versionLabel(subject: RegistrySubject): String = subject match {
     case RegistrySubject.Pinned(_, v) => v.toString
@@ -60,8 +70,7 @@ final class Downloader private[avro] (
 }
 
 object Downloader {
-  val avroSchemaFileExtension = "avsc"
-  val defaultCacheSize        = 200
+  val defaultCacheSize = 200
 
   private[avro] def buildConfig(
       auth: Option[SchemaRegistryAuth],

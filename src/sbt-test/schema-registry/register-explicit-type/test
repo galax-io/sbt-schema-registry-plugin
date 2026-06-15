@@ -1,0 +1,2 @@
+# Register a schema with non-standard extension using explicit type override.
+> Compile / schemaRegistryRegister
