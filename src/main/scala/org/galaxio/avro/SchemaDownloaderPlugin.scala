@@ -4,7 +4,9 @@ import _root_.io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import sbt.*
 import Keys.*
 
-import scala.util.Using
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path => JPath}
+import scala.util.{Try, Using}
 
 object SchemaDownloaderPlugin extends AutoPlugin {
   override def trigger = allRequirements
@@ -22,6 +24,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
     val schemaRegistryProperties        = settingKey[Map[String, String]]("Additional schema registry client properties")
     val schemaRegistrySubjectPatterns   =
       settingKey[Seq[String]]("Regex patterns to match subjects for download")
+    val schemaRegistryIncremental       =
+      settingKey[Boolean]("Enable incremental download — skip unchanged schemas")
 
     lazy val defaultSettings: Seq[Setting[?]] = Seq(
       schemaRegistryUrl             := "http://localhost:8081",
@@ -32,6 +36,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       schemaRegistryCacheSize       := Downloader.defaultCacheSize,
       schemaRegistryAuth            := None,
       schemaRegistryProperties      := Map.empty,
+      schemaRegistryIncremental     := true,
     )
   }
 
@@ -45,17 +50,38 @@ object SchemaDownloaderPlugin extends AutoPlugin {
   )(f: SchemaRegistryClient => A): A =
     Using.resource(Downloader.buildClient(url, cacheSize, auth, properties))(f)
 
+  private def loadManifest(path: JPath, incremental: Boolean, logger: sbt.util.Logger): VersionManifest =
+    if (!incremental || !Files.exists(path)) VersionManifest.empty
+    else
+      Try(new String(Files.readAllBytes(path), StandardCharsets.UTF_8)).toEither
+        .flatMap(VersionManifest.fromJson) match {
+        case Right(m) => m
+        case Left(_)  =>
+          logger.warn("Version manifest corrupted, re-downloading all schemas")
+          VersionManifest.empty
+      }
+
+  private def writeManifest(path: JPath, manifest: VersionManifest, logger: sbt.util.Logger): Unit =
+    Try {
+      Files.createDirectories(path.getParent)
+      Files.write(path, manifest.toJson.getBytes(StandardCharsets.UTF_8))
+    }.failed.foreach(e => logger.warn(s"Failed to write version manifest: ${e.getMessage}"))
+
   override lazy val projectSettings: Seq[Setting[?]] = defaultSettings ++ Seq(
     schemaRegistryDownload                    := (Compile / schemaRegistryDownload).value,
     Compile / schemaRegistryDownload          := {
-      val logger   = streams.value.log
-      val subjects = schemaRegistrySubjects.value
-      val patterns = schemaRegistrySubjectPatterns.value
+      val logger       = streams.value.log
+      val subjects     = schemaRegistrySubjects.value
+      val patterns     = schemaRegistrySubjectPatterns.value
+      val incremental  = schemaRegistryIncremental.value
+      val manifestFile =
+        streams.value.cacheDirectory.toPath.resolve(".schema-versions.json")
 
       logger.debug(s"schemaRegistryUrl: ${schemaRegistryUrl.value}")
       logger.debug(s"schemaRegistryTargetFolder: ${schemaRegistryTargetFolder.value}")
       logger.debug(s"schemaRegistrySubjects: ${subjects.mkString(", ")}")
       logger.debug(s"schemaRegistrySubjectPatterns: ${patterns.mkString(", ")}")
+      logger.debug(s"schemaRegistryIncremental: $incremental")
 
       if (subjects.isEmpty && patterns.isEmpty) {
         logger.warn(
@@ -85,10 +111,49 @@ object SchemaDownloaderPlugin extends AutoPlugin {
             }
           }
 
+          val manifest = loadManifest(manifestFile, incremental, logger)
+
+          val decisions =
+            if (incremental)
+              IncrementalResolver.plan(
+                manifest,
+                resolvedSubjects.toList,
+                s =>
+                  Try(client.getLatestSchemaMetadata(s).getVersion: Int).toEither.left
+                    .map(DownloadError.SchemaFetchFailed(s, _)),
+              )
+            else
+              resolvedSubjects.toList.map(s => DownloadDecision.Download(s, "incremental disabled"))
+
+          val (skips, downloads) = decisions.partition {
+            case _: DownloadDecision.Skip => true
+            case _                        => false
+          }
+
+          skips.foreach {
+            case DownloadDecision.Skip(name, v) => logger.info(s"$name v$v → up to date")
+            case _                              => ()
+          }
+
           val downloader =
             Downloader.withExternalClient(client, schemaRegistryTargetFolder.value.toPath, logger)
-          val results    = resolvedSubjects.map(s => s -> downloader.schemaSubjectToFile(s))
-          val failures   = results.collect { case (s, Left(e)) => s -> e }
+
+          val downloadResults = downloads.collect { case d @ DownloadDecision.Download(subject, reason, _) =>
+            logger.info(s"${subject.name}: $reason")
+            d -> downloader.schemaSubjectToFile(subject)
+          }
+
+          val failures = downloadResults.collect { case (d, Left(e)) => d.subject -> e }
+
+          val downloaded = downloadResults.collect {
+            case (d, Right(_)) if d.resolvedVersion.isDefined =>
+              d.subject.name -> d.resolvedVersion.get
+          }
+
+          if (incremental && downloaded.nonEmpty) {
+            val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
+            writeManifest(manifestFile, newManifest, logger)
+          }
 
           if (failures.nonEmpty) {
             failures.foreach { case (s, e) =>
@@ -97,6 +162,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
             }
             sys.error(s"Failed to download ${failures.size} schema(s)")
           }
+
+          logger.info(s"${downloads.size} downloaded, ${skips.size} skipped")
         }
       }
     },

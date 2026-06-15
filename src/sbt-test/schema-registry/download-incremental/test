@@ -1,0 +1,7 @@
+# First download — all subjects fetched, file created.
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc
+
+# Second download — should skip (up to date), file still exists.
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc

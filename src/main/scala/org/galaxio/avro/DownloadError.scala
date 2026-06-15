@@ -36,4 +36,9 @@ object DownloadError {
     val message: String                   = s"Failed to fetch subject list: ${error.getMessage}"
     override val cause: Option[Throwable] = Some(error)
   }
+
+  final case class ManifestParseError(error: Throwable) extends DownloadError {
+    val message: String                   = s"Failed to parse version manifest: ${error.getMessage}"
+    override val cause: Option[Throwable] = Some(error)
+  }
 }
