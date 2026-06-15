@@ -1,0 +1,1 @@
+{"type":"record","name":"RoundTrip","namespace":"it.e2e","fields":[{"name":"id","type":"long"},{"name":"name","type":"string"}]}

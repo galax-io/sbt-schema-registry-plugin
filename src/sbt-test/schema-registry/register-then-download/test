@@ -1,0 +1,4 @@
+# Register a schema, then download it — content must match the original.
+> Compile / schemaRegistryRegister
+> Compile / schemaRegistryDownload
+> checkRoundTrip
