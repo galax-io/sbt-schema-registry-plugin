@@ -11,7 +11,7 @@ object IncrementalResolver {
       case s @ RegistrySubject.Pinned(name, version) =>
         manifest.versionOf(name) match {
           case Some(`version`) => DownloadDecision.Skip(name, version)
-          case _               => DownloadDecision.Download(s, s"pinned v$version, not cached")
+          case _               => DownloadDecision.Download(s, s"pinned v$version, not cached", Some(version))
         }
 
       case s @ RegistrySubject.Latest(name) =>
@@ -22,7 +22,7 @@ object IncrementalResolver {
             val reason = manifest
               .versionOf(name)
               .fold(s"new, registry v$v")(local => s"local v$local → registry v$v")
-            DownloadDecision.Download(s, reason)
+            DownloadDecision.Download(s, reason, Some(v))
           case Left(_)                                          =>
             DownloadDecision.Download(s, "version check failed, re-downloading")
         }

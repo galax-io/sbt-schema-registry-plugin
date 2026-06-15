@@ -4,6 +4,7 @@ import _root_.io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import sbt.*
 import Keys.*
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path => JPath}
 import scala.util.{Try, Using}
 
@@ -52,7 +53,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
   private def loadManifest(path: JPath, incremental: Boolean, logger: sbt.util.Logger): VersionManifest =
     if (!incremental || !Files.exists(path)) VersionManifest.empty
     else
-      Try(new String(Files.readAllBytes(path))).toEither
+      Try(new String(Files.readAllBytes(path), StandardCharsets.UTF_8)).toEither
         .flatMap(VersionManifest.fromJson) match {
         case Right(m) => m
         case Left(_)  =>
@@ -63,7 +64,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
   private def writeManifest(path: JPath, manifest: VersionManifest, logger: sbt.util.Logger): Unit =
     Try {
       Files.createDirectories(path.getParent)
-      Files.write(path, manifest.toJson.getBytes())
+      Files.write(path, manifest.toJson.getBytes(StandardCharsets.UTF_8))
     }.failed.foreach(e => logger.warn(s"Failed to write version manifest: ${e.getMessage}"))
 
   override lazy val projectSettings: Seq[Setting[?]] = defaultSettings ++ Seq(
@@ -137,32 +138,29 @@ object SchemaDownloaderPlugin extends AutoPlugin {
           val downloader =
             Downloader.withExternalClient(client, schemaRegistryTargetFolder.value.toPath, logger)
 
-          val downloadResults = downloads.collect { case DownloadDecision.Download(subject, reason) =>
+          val downloadResults = downloads.collect { case d @ DownloadDecision.Download(subject, reason, _) =>
             logger.info(s"${subject.name}: $reason")
-            subject -> downloader.schemaSubjectToFile(subject)
+            d -> downloader.schemaSubjectToFile(subject)
           }
 
-          val failures = downloadResults.collect { case (s, Left(e)) => s -> e }
+          val failures = downloadResults.collect { case (d, Left(e)) => d.subject -> e }
+
+          val downloaded = downloadResults.collect {
+            case (d, Right(_)) if d.resolvedVersion.isDefined =>
+              d.subject.name -> d.resolvedVersion.get
+          }
+
+          if (incremental && downloaded.nonEmpty) {
+            val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
+            writeManifest(manifestFile, newManifest, logger)
+          }
+
           if (failures.nonEmpty) {
             failures.foreach { case (s, e) =>
               logger.error(s"Failed to download schema ${s.name}: ${e.message}")
               e.cause.foreach(logger.trace(_))
             }
             sys.error(s"Failed to download ${failures.size} schema(s)")
-          }
-
-          val downloaded = downloadResults.collect { case (s, Right(_)) =>
-            val version = s match {
-              case RegistrySubject.Pinned(_, v) => v
-              case RegistrySubject.Latest(name) =>
-                Try(client.getLatestSchemaMetadata(name).getVersion: Int).getOrElse(0)
-            }
-            s.name -> version
-          }
-
-          if (incremental) {
-            val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
-            writeManifest(manifestFile, newManifest, logger)
           }
 
           logger.info(s"${downloads.size} downloaded, ${skips.size} skipped")

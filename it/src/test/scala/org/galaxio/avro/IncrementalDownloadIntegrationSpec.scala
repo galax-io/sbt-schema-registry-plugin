@@ -58,7 +58,11 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
   private def withTempDir(test: Path => Any): Unit = {
     val dir = Files.createTempDirectory("incremental-test")
     try test(dir)
-    finally Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.deleteIfExists)
+    finally {
+      val stream = Files.walk(dir)
+      try stream.sorted(java.util.Comparator.reverseOrder()).forEach(Files.deleteIfExists)
+      finally stream.close()
+    }
   }
 
   private val orderSchemaV1 =
@@ -96,10 +100,9 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
       decisions.collect { case s: DownloadDecision.Skip     => s } shouldBe empty
 
       val downloader = Downloader.withExternalClient(registryClient, outputDir, silentLogger)
-      val downloaded = decisions.collect { case DownloadDecision.Download(subject, _) =>
+      val downloaded = decisions.collect { case d @ DownloadDecision.Download(subject, _, _) =>
         downloader.schemaSubjectToFile(subject)
-        val v = registryClient.getLatestSchemaMetadata(subject.name).getVersion
-        subject.name -> v
+        subject.name -> d.resolvedVersion.get
       }
 
       val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
