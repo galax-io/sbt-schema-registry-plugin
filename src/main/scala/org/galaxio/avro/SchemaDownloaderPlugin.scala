@@ -20,15 +20,18 @@ object SchemaDownloaderPlugin extends AutoPlugin {
     val schemaRegistryCacheSize         = settingKey[Int]("Schema registry client cache size")
     val schemaRegistryAuth              = settingKey[Option[SchemaRegistryAuth]]("Schema registry authentication")
     val schemaRegistryProperties        = settingKey[Map[String, String]]("Additional schema registry client properties")
+    val schemaRegistrySubjectPatterns   =
+      settingKey[Seq[String]]("Regex patterns to match subjects for download")
 
     lazy val defaultSettings: Seq[Setting[?]] = Seq(
-      schemaRegistryUrl           := "http://localhost:8081",
-      schemaRegistryTargetFolder  := sourceDirectory.value / "main" / "avro",
-      schemaRegistrySubjects      := Seq(),
-      schemaRegistryRegistrations := Seq(),
-      schemaRegistryCacheSize     := Downloader.defaultCacheSize,
-      schemaRegistryAuth          := None,
-      schemaRegistryProperties    := Map.empty,
+      schemaRegistryUrl             := "http://localhost:8081",
+      schemaRegistryTargetFolder    := sourceDirectory.value / "main" / "avro",
+      schemaRegistrySubjects        := Seq(),
+      schemaRegistrySubjectPatterns := Seq(),
+      schemaRegistryRegistrations   := Seq(),
+      schemaRegistryCacheSize       := Downloader.defaultCacheSize,
+      schemaRegistryAuth            := None,
+      schemaRegistryProperties      := Map.empty,
     )
   }
 
@@ -47,26 +50,45 @@ object SchemaDownloaderPlugin extends AutoPlugin {
     Compile / schemaRegistryDownload          := {
       val logger   = streams.value.log
       val subjects = schemaRegistrySubjects.value
+      val patterns = schemaRegistrySubjectPatterns.value
 
       logger.debug(s"schemaRegistryUrl: ${schemaRegistryUrl.value}")
       logger.debug(s"schemaRegistryTargetFolder: ${schemaRegistryTargetFolder.value}")
       logger.debug(s"schemaRegistrySubjects: ${subjects.mkString(", ")}")
+      logger.debug(s"schemaRegistrySubjectPatterns: ${patterns.mkString(", ")}")
 
-      if (subjects.isEmpty) {
-        logger.warn("No schema subjects configured. Set schemaRegistrySubjects to download schemas.")
+      if (subjects.isEmpty && patterns.isEmpty) {
+        logger.warn(
+          "No schema subjects configured. Set schemaRegistrySubjects or schemaRegistrySubjectPatterns to download schemas.",
+        )
       } else {
-        Using.resource(
-          Downloader(
-            rootUrl = schemaRegistryUrl.value,
-            schemaOutputDir = schemaRegistryTargetFolder.value.toPath,
-            logger = logger,
-            cacheSize = schemaRegistryCacheSize.value,
-            auth = schemaRegistryAuth.value,
-            properties = schemaRegistryProperties.value,
-          ),
-        ) { downloader =>
-          val results  = subjects.map(s => s -> downloader.schemaSubjectToFile(s))
-          val failures = results.collect { case (s, Left(e)) => s -> e }
+        withRegistryClient(
+          schemaRegistryUrl.value,
+          schemaRegistryCacheSize.value,
+          schemaRegistryAuth.value,
+          schemaRegistryProperties.value,
+        ) { client =>
+          val resolvedSubjects = if (patterns.isEmpty) {
+            subjects
+          } else {
+            val specs =
+              subjects.map(s => SubjectSpec.Exact(s)).toList ++
+                patterns.map(SubjectSpec.Pattern).toList
+
+            SubjectResolver.resolve(client, specs) match {
+              case Left(err)   =>
+                err.cause.foreach(logger.trace(_))
+                sys.error(err.message)
+              case Right(plan) =>
+                logger.info(s"Resolved ${plan.subjects.size} subject(s) from patterns")
+                plan.subjects
+            }
+          }
+
+          val downloader =
+            Downloader.withExternalClient(client, schemaRegistryTargetFolder.value.toPath, logger)
+          val results    = resolvedSubjects.map(s => s -> downloader.schemaSubjectToFile(s))
+          val failures   = results.collect { case (s, Left(e)) => s -> e }
 
           if (failures.nonEmpty) {
             failures.foreach { case (s, e) =>
