@@ -1,0 +1,4 @@
+# Register V1, then check compatibility of V2 (breaking removal of required field).
+> Compile / schemaRegistryRegister
+> set schemaRegistryRegistrations := Seq(org.galaxio.avro.RegistryRegistration("it.e2e.CompatFail", baseDirectory.value / "src/main/avro/V2-breaking.avsc"))
+-> Compile / schemaRegistryTestCompatibility

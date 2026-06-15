@@ -1,0 +1,1 @@
+{"type":"record","name":"CompatPass","namespace":"it.e2e","fields":[{"name":"id","type":"long"}]}

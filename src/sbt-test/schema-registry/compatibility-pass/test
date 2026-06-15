@@ -1,0 +1,4 @@
+# Register V1, then check compatibility of V2 (backward-compatible addition).
+> Compile / schemaRegistryRegister
+> set schemaRegistryRegistrations := Seq(org.galaxio.avro.RegistryRegistration("it.e2e.CompatPass", baseDirectory.value / "src/main/avro/V2.avsc"))
+> Compile / schemaRegistryTestCompatibility
