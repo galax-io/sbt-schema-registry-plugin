@@ -130,7 +130,32 @@ RegistryRegistration("user-value", file("src/main/avro/User.json"), SchemaType.J
 | `schemaRegistryRegistrations` | List of subject-to-file schema mappings | `Seq()`    |
 
 All connection settings (`schemaRegistryUrl`, `schemaRegistryAuth`, `schemaRegistryProperties`) are
-shared between download and registration tasks.
+shared between download, registration, and compatibility tasks.
+
+## Schema Compatibility Check
+
+Verify that local schemas are compatible with versions already registered in Schema Registry
+before deploying:
+
+```bash
+sbt "Compile / schemaRegistryTestCompatibility"
+```
+
+The task uses the same `schemaRegistryRegistrations` setting as `schemaRegistryRegister`. For each
+subject it calls `testCompatibilityVerbose` against the registry and reports:
+
+- **Compatible** — the new schema can safely be registered
+- **Incompatible** — the registry would reject registration; verbose messages explain why
+- **Failed** — an error occurred (file not found, parse error, network issue)
+
+The build fails if any subject is incompatible or fails. Use this in CI before registration to
+catch breaking changes early:
+
+```sbt
+Compile / compile := (Compile / compile)
+  .dependsOn(Compile / schemaRegistryTestCompatibility)
+  .value
+```
 
 ## Workflow Integration
 

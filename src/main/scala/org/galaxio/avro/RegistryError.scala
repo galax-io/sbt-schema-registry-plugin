@@ -23,6 +23,11 @@ object RegistryError {
     override val cause: Option[Throwable] = Some(error)
   }
 
+  final case class CompatibilityCheckFailed(subject: String, error: Throwable) extends RegistryError {
+    val message: String                   = s"Compatibility check failed for $subject: ${error.getMessage}"
+    override val cause: Option[Throwable] = Some(error)
+  }
+
   final case class UnsupportedSchemaType(ext: String) extends RegistryError {
     val message: String = s"Unsupported schema file extension: $ext"
   }

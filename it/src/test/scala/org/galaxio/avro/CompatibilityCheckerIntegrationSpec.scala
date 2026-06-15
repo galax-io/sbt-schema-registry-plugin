@@ -1,0 +1,132 @@
+package org.galaxio.avro
+
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
+import io.confluent.kafka.schemaregistry.avro.AvroSchema
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.testcontainers.containers.{GenericContainer => JGenericContainer, Network}
+import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.kafka.ConfluentKafkaContainer
+import org.testcontainers.utility.DockerImageName
+
+import java.io.File
+import java.nio.file.Files
+import scala.util.Try
+
+class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
+
+  private var network: Network                           = _
+  private var kafka: ConfluentKafkaContainer             = _
+  private var sr: JGenericContainer[_]                   = _
+  private var registryUrl: String                        = _
+  private var registryClient: CachedSchemaRegistryClient = _
+
+  override def beforeAll(): Unit = {
+    network = Network.newNetwork()
+
+    kafka = new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
+    kafka.withListener("kafka:19092")
+    kafka.withNetwork(network)
+    kafka.start()
+
+    sr = new JGenericContainer(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
+    sr.withNetwork(network)
+    sr.withExposedPorts(8081)
+    sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
+    sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:19092")
+    sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
+    sr.start()
+
+    registryUrl = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
+    registryClient = new CachedSchemaRegistryClient(registryUrl, 100)
+  }
+
+  override def afterAll(): Unit = {
+    Option(registryClient).foreach(c => Try(c.close()))
+    Option(sr).foreach(c => Try(c.stop()))
+    Option(kafka).foreach(c => Try(c.stop()))
+    Option(network).foreach(c => Try(c.close()))
+  }
+
+  private def tempSchemaFile(content: String): File = {
+    val f = File.createTempFile("compat-it-", ".avsc")
+    f.deleteOnExit()
+    Files.write(f.toPath, content.getBytes("UTF-8"))
+    f
+  }
+
+  "CompatibilityChecker (integration)" should "return Compatible for a backward-compatible change" in {
+    val v1 =
+      """{"type":"record","name":"CompatV1","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    val v2 =
+      """{"type":"record","name":"CompatV1","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":"string","default":""}]}"""
+
+    registryClient.register("compat-check-pass", new AvroSchema(v1))
+
+    val file   = tempSchemaFile(v2)
+    val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-check-pass", file))
+    result shouldBe CompatibilityResult.Compatible("compat-check-pass")
+  }
+
+  it should "return Incompatible with verbose messages for a breaking change" in {
+    val v1 =
+      """{"type":"record","name":"CompatV2","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    val v2breaking =
+      """{"type":"record","name":"CompatV2","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":"string"}]}"""
+
+    registryClient.register("compat-check-fail", new AvroSchema(v1))
+
+    val file   = tempSchemaFile(v2breaking)
+    val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-check-fail", file))
+    result shouldBe a[CompatibilityResult.Incompatible]
+    val incompatible = result.asInstanceOf[CompatibilityResult.Incompatible]
+    incompatible.messages should not be empty
+  }
+
+  it should "return Compatible for a brand-new subject with no prior versions" in {
+    val schema =
+      """{"type":"record","name":"BrandNew","namespace":"org.galaxio","fields":[{"name":"x","type":"int"}]}"""
+    val file   = tempSchemaFile(schema)
+    val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-new-subject", file))
+    result shouldBe CompatibilityResult.Compatible("compat-new-subject")
+  }
+
+  it should "return Failed for invalid schema content" in {
+    val file   = tempSchemaFile("not valid json at all")
+    val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-invalid", file))
+    result shouldBe a[CompatibilityResult.Failed]
+  }
+
+  it should "return Failed for missing file" in {
+    val result = CompatibilityChecker.checkOne(
+      registryClient,
+      RegistryRegistration("compat-missing", new File("/nonexistent.avsc")),
+    )
+    result shouldBe a[CompatibilityResult.Failed]
+    result.asInstanceOf[CompatibilityResult.Failed].cause shouldBe a[RegistryError.FileNotFound]
+  }
+
+  it should "check all subjects independently in a batch" in {
+    val v1 =
+      """{"type":"record","name":"BatchTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    registryClient.register("compat-batch", new AvroSchema(v1))
+
+    val compatible =
+      """{"type":"record","name":"BatchTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"extra","type":"string","default":""}]}"""
+    val incompatible =
+      """{"type":"record","name":"BatchTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"required_field","type":"string"}]}"""
+
+    val report = CompatibilityChecker.checkAll(
+      registryClient,
+      List(
+        RegistryRegistration("compat-batch", tempSchemaFile(compatible)),
+        RegistryRegistration("compat-batch", tempSchemaFile(incompatible)),
+      ),
+    )
+
+    report.compatible should have size 1
+    report.incompatible should have size 1
+    report.isSuccess shouldBe false
+  }
+}
