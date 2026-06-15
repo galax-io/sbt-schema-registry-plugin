@@ -102,6 +102,13 @@ object Downloader {
     else new CachedSchemaRegistryClient(Collections.singletonList(rootUrl), cacheSize, javaConfig)
   }
 
+  private[avro] def withExternalClient(
+      client: SchemaRegistryClient,
+      schemaOutputDir: Path,
+      logger: Logger,
+  ): Downloader =
+    new Downloader(client, schemaOutputDir, logger)
+
   def apply(
       rootUrl: String,
       schemaOutputDir: Path,

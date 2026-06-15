@@ -26,4 +26,14 @@ object DownloadError {
   final case class UnsupportedSchemaType(schemaType: String, subject: String) extends DownloadError {
     val message: String = s"Unsupported schema type '$schemaType' for subject $subject"
   }
+
+  final case class InvalidPattern(pattern: String, error: Throwable) extends DownloadError {
+    val message: String                   = s"Invalid regex pattern '$pattern': ${error.getMessage}"
+    override val cause: Option[Throwable] = Some(error)
+  }
+
+  final case class SubjectListFailed(error: Throwable) extends DownloadError {
+    val message: String                   = s"Failed to fetch subject list: ${error.getMessage}"
+    override val cause: Option[Throwable] = Some(error)
+  }
 }
