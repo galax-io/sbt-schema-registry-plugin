@@ -50,3 +50,6 @@ project/plugins/project/
 /.idea/
 .bsp/
 /io/
+
+### Spec-kit
+.specify/feature.json
