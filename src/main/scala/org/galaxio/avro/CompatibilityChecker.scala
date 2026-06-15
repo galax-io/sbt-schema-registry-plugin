@@ -15,7 +15,7 @@ object CompatibilityChecker {
       content  <- Registrar.readSchemaFile(reg)
       parsed   <- Registrar.buildParsedSchema(reg.subject, content, reg.schemaType)
       messages <- Try(client.testCompatibilityVerbose(reg.subject, parsed).asScala.toList).toEither.left
-                    .map(RegistryError.RegistrationFailed(reg.subject, _))
+                    .map(RegistryError.CompatibilityCheckFailed(reg.subject, _))
     } yield messages
 
     result match {

@@ -1,5 +1,6 @@
 package org.galaxio.avro
 
+import _root_.io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import sbt.*
 import Keys.*
 
@@ -32,6 +33,14 @@ object SchemaDownloaderPlugin extends AutoPlugin {
   }
 
   import autoImport.*
+
+  private def withRegistryClient[A](
+      url: String,
+      cacheSize: Int,
+      auth: Option[SchemaRegistryAuth],
+      properties: Map[String, String],
+  )(f: SchemaRegistryClient => A): A =
+    Using.resource(Downloader.buildClient(url, cacheSize, auth, properties))(f)
 
   override lazy val projectSettings: Seq[Setting[?]] = defaultSettings ++ Seq(
     schemaRegistryDownload                    := (Compile / schemaRegistryDownload).value,
@@ -77,13 +86,12 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       if (registrations.isEmpty) {
         logger.warn("No schema registrations configured. Set schemaRegistryRegistrations to register schemas.")
       } else {
-        val client = Downloader.buildClient(
-          rootUrl = schemaRegistryUrl.value,
-          cacheSize = schemaRegistryCacheSize.value,
-          auth = schemaRegistryAuth.value,
-          properties = schemaRegistryProperties.value,
-        )
-        Using.resource(client) { c =>
+        withRegistryClient(
+          schemaRegistryUrl.value,
+          schemaRegistryCacheSize.value,
+          schemaRegistryAuth.value,
+          schemaRegistryProperties.value,
+        ) { c =>
           val results             = Registrar.registerAll(c, registrations)
           val (errors, successes) = Registrar.partitionResults(results)
 
@@ -105,13 +113,12 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       if (registrations.isEmpty) {
         logger.warn("No schema registrations configured. Set schemaRegistryRegistrations to check compatibility.")
       } else {
-        val client = Downloader.buildClient(
-          rootUrl = schemaRegistryUrl.value,
-          cacheSize = schemaRegistryCacheSize.value,
-          auth = schemaRegistryAuth.value,
-          properties = schemaRegistryProperties.value,
-        )
-        Using.resource(client) { c =>
+        withRegistryClient(
+          schemaRegistryUrl.value,
+          schemaRegistryCacheSize.value,
+          schemaRegistryAuth.value,
+          schemaRegistryProperties.value,
+        ) { c =>
           val report = CompatibilityChecker.checkAll(c, registrations)
 
           report.compatible.foreach(r => logger.info(s"✓ ${r.subject} is compatible"))
