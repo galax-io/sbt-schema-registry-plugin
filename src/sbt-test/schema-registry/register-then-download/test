@@ -1,4 +1,4 @@
 # Register a schema, then download it — content must match the original.
 > Compile / schemaRegistryRegister
 > Compile / schemaRegistryDownload
-$ must-mirror src/main/avro/it.e2e.RoundTrip-1.avsc src/main/avro/RoundTrip.avsc
+> checkRoundTrip

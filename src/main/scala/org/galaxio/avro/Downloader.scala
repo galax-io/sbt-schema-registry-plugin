@@ -76,7 +76,7 @@ object Downloader {
     properties ++ authEntries
   }
 
-  def buildClient(
+  private[avro] def buildClient(
       rootUrl: String,
       cacheSize: Int = defaultCacheSize,
       auth: Option[SchemaRegistryAuth] = None,

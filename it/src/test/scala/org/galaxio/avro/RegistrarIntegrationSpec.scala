@@ -43,12 +43,11 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
   }
 
   override def afterAll(): Unit = {
+    Option(registryClient).foreach(c => Try(c.close()))
     Option(sr).foreach(c => Try(c.stop()))
     Option(kafka).foreach(c => Try(c.stop()))
     Option(network).foreach(c => Try(c.close()))
   }
-
-  private val silentLogger: Logger = Logger.Null
 
   private def tempSchemaFile(content: String): File = {
     val f = File.createTempFile("schema-it-", ".avsc")
@@ -128,7 +127,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
     )
     regResults.head shouldBe a[Right[_, _]]
 
-    val downloader = Downloader(registryUrl, dir, silentLogger)
+    val downloader = Downloader(registryUrl, dir, Logger.Null)
     try {
       val dlResult = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
       dlResult shouldBe a[Right[_, _]]
