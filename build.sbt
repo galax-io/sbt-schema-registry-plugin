@@ -49,5 +49,7 @@ lazy val it = (project in file("it"))
       "org.scala-sbt"    %% "util-logging" % sbtV % Test,
       scalatest           % Test,
       testcontainersKafka % Test,
+      protobufProvider    % Test,
+      jsonSchemaProvider  % Test,
     ),
   )

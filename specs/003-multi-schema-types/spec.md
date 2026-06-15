@@ -8,6 +8,13 @@
 
 **Input**: User description: "Support Protobuf and JSON Schema types in addition to Avro (GitHub issue #27)"
 
+## Clarifications
+
+### Session 2026-06-15
+
+- Q: Should Protobuf/JSON Schema serializer libraries be required or optional dependencies? → A: Optional per-type — users add only the serializer dependency for schema types they use. Plugin reports actionable error when a required dependency is missing.
+- Q: Should schema references (Protobuf `import`, JSON Schema `$ref` to other registered schemas) be in scope? → A: In scope — support passing a reference list per registration entry for both Protobuf and JSON Schema.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Register Protobuf Schema (Priority: P1)
@@ -87,12 +94,31 @@ A developer wants to check schema compatibility before deploying a Protobuf or J
 
 ---
 
+### User Story 6 - Register Schemas with References (Priority: P2)
+
+A developer has Protobuf schemas that import other `.proto` definitions, or JSON Schemas that use `$ref` to reference other schemas already registered in Schema Registry. They want to register these schemas with their reference list so Schema Registry can resolve dependencies.
+
+**Why this priority**: Real-world schemas frequently reference shared types. Without reference support, users with modular schema designs cannot use the plugin.
+
+**Independent Test**: Can be fully tested by registering a base schema, then registering a schema that references it with the reference list, and verifying both are correctly linked in Schema Registry.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Protobuf schema that imports another registered schema, **When** the user configures the registration with a reference list, **Then** the schema is registered with its references resolved by Schema Registry.
+2. **Given** a JSON Schema with `$ref` pointing to another registered schema, **When** the user configures the registration with a reference list, **Then** the schema is registered with its references resolved.
+3. **Given** a registration with references where a referenced schema does not exist in the registry, **When** the user runs the register task, **Then** the plugin reports a clear error identifying the missing reference.
+4. **Given** a schema with no references, **When** the user omits the reference list, **Then** registration works exactly as before (backward compatible).
+
+---
+
 ### Edge Cases
 
 - What happens when a file has no extension? The plugin should report a clear error asking the user to either rename the file or specify the schema type explicitly.
 - What happens when a file has an unrecognized extension (e.g., `.yaml`)? The plugin should report an error listing the supported extensions.
 - What happens when Schema Registry returns a schema type not known to the plugin during download? The plugin should report an error with the unknown type value.
 - How does the plugin behave with mixed schema types in a single project? Each registration entry is independent — different subjects can use different schema types without conflict.
+- What happens when a referenced schema is not yet registered? The plugin should report an error listing the missing reference subject and version.
+- What happens when the required serializer library is not on the classpath? The plugin should report an actionable error naming the missing dependency and how to add it.
 
 ## Requirements *(mandatory)*
 
@@ -108,18 +134,23 @@ A developer wants to check schema compatibility before deploying a Protobuf or J
 - **FR-008**: Plugin MUST maintain full backward compatibility for existing Avro-only users — no configuration changes required for projects that only use Avro.
 - **FR-009**: Compatibility check MUST work correctly for Protobuf and JSON Schema types, not only Avro.
 - **FR-010**: Plugin MUST handle the case where Schema Registry returns a null or missing schema type by defaulting to Avro (this is the registry's own behavior for legacy schemas).
+- **FR-011**: Protobuf and JSON Schema serializer libraries MUST be optional dependencies — users add only the serializer for schema types they use. The plugin MUST NOT require these libraries for Avro-only projects.
+- **FR-012**: Plugin MUST report an actionable error when a required serializer library is missing from the classpath, naming the specific dependency and schema type.
+- **FR-013**: Plugin MUST support schema references — a registration entry MAY include a list of references (name, subject, and version) for Protobuf imports and JSON Schema `$ref` resolution.
+- **FR-014**: Plugin MUST report a clear error when a referenced schema does not exist in the registry.
 
 ### Key Entities
 
 - **Schema Type**: Represents one of the three supported schema formats (Avro, Protobuf, JSON Schema). Each type has a canonical file extension and a registry label used when communicating with Schema Registry.
-- **Registration Entry**: A user-configured mapping from a subject name to a schema file, optionally with an explicit schema type override.
+- **Registration Entry**: A user-configured mapping from a subject name to a schema file, optionally with an explicit schema type override and an optional list of schema references.
+- **Schema Reference**: A pointer to another schema in the registry (subject name + version), used for Protobuf imports and JSON Schema `$ref` resolution.
 - **Downloaded Schema**: A schema fetched from Schema Registry, including its subject, version, detected type, and content.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Users can register Protobuf and JSON Schema files using the same workflow as Avro — no additional manual steps required beyond providing the schema file.
+- **SC-001**: Users can register Protobuf and JSON Schema files using the same workflow as Avro — the only additional step is adding the corresponding serializer library dependency.
 - **SC-002**: Downloaded schema files have the correct extension 100% of the time, matching their schema type in the registry.
 - **SC-003**: Existing projects using only Avro schemas continue to work without any configuration changes after upgrading the plugin.
 - **SC-004**: Schema type detection from file extension succeeds for all three standard extensions (`.avsc`, `.proto`, `.json`) without user intervention.
@@ -129,7 +160,7 @@ A developer wants to check schema compatibility before deploying a Protobuf or J
 ## Assumptions
 
 - Schema Registry version 5.5+ is required, as multi-schema-type support was introduced in that version. Earlier versions only support Avro.
-- Protobuf schemas are self-contained single-file `.proto` definitions. Multi-file Protobuf imports (referencing other `.proto` files) are out of scope for the initial implementation.
+- Protobuf imports and JSON Schema `$ref` are supported via schema references to other schemas already registered in Schema Registry. Local filesystem multi-file resolution (reading imported `.proto` files from disk) is out of scope — references must point to registered schemas.
 - JSON Schema files use standard JSON Schema draft specification as supported by Confluent Schema Registry.
 - Users managing mixed schema types in a single project is a supported use case — no restriction on combining Avro, Protobuf, and JSON Schema registrations.
 - The plugin's existing authentication and connection configuration applies uniformly to all schema types — no type-specific connection settings are needed.

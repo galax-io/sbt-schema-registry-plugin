@@ -49,8 +49,8 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
     Option(network).foreach(c => Try(c.close()))
   }
 
-  private def tempSchemaFile(content: String): File = {
-    val f = File.createTempFile("compat-it-", ".avsc")
+  private def tempSchemaFile(content: String, suffix: String = ".avsc"): File = {
+    val f = File.createTempFile("compat-it-", suffix)
     f.deleteOnExit()
     Files.write(f.toPath, content.getBytes("UTF-8"))
     f
@@ -105,6 +105,45 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
     )
     result shouldBe a[CompatibilityResult.Failed]
     result.asInstanceOf[CompatibilityResult.Failed].cause shouldBe a[RegistryError.FileNotFound]
+  }
+
+  it should "return Compatible for backward-compatible Protobuf change" in {
+    val v1 =
+      """syntax = "proto3";
+        |message ProtoCompat {
+        |  string id = 1;
+        |}""".stripMargin
+    val v1File = tempSchemaFile(v1, ".proto")
+    val v1Reg  = RegistryRegistration("compat-proto-pass", v1File, SchemaType.Protobuf)
+    Registrar.registerAll(registryClient, List(v1Reg))
+
+    val v2 =
+      """syntax = "proto3";
+        |message ProtoCompat {
+        |  string id = 1;
+        |  string name = 2;
+        |}""".stripMargin
+    val v2File = tempSchemaFile(v2, ".proto")
+    val result = CompatibilityChecker.checkOne(
+      registryClient,
+      RegistryRegistration("compat-proto-pass", v2File, SchemaType.Protobuf),
+    )
+    result shouldBe CompatibilityResult.Compatible("compat-proto-pass")
+  }
+
+  it should "return Compatible for backward-compatible JSON Schema change" in {
+    val v1 = """{"type":"object","properties":{"id":{"type":"integer"}},"additionalProperties":false}"""
+    val v1File = tempSchemaFile(v1, ".json")
+    val v1Reg  = RegistryRegistration("compat-json-pass", v1File, SchemaType.Json)
+    Registrar.registerAll(registryClient, List(v1Reg))
+
+    val v2     = """{"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"}},"additionalProperties":false}"""
+    val v2File = tempSchemaFile(v2, ".json")
+    val result = CompatibilityChecker.checkOne(
+      registryClient,
+      RegistryRegistration("compat-json-pass", v2File, SchemaType.Json),
+    )
+    result shouldBe CompatibilityResult.Compatible("compat-json-pass")
   }
 
   it should "check all subjects independently in a batch" in {

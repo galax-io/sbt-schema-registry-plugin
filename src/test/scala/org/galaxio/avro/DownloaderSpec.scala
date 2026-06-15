@@ -220,4 +220,64 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     Files.exists(file) shouldBe true
     readFile(file) shouldBe ""
   }
+
+  it should "download schema with Protobuf type using .proto extension" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val meta   = new SchemaMetadata(1, 3, "PROTOBUF", Collections.emptyList(), """syntax = "proto3";""")
+    when(client.getLatestSchemaMetadata("proto-subject")).thenReturn(meta)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("proto-subject"))
+
+    result shouldBe a[Right[_, _]]
+    Files.exists(dir.resolve("proto-subject-3.proto")) shouldBe true
+  }
+
+  it should "download schema with JSON type using .json extension" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val meta   = new SchemaMetadata(1, 2, "JSON", Collections.emptyList(), """{"type":"object"}""")
+    when(client.getLatestSchemaMetadata("json-subject")).thenReturn(meta)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("json-subject"))
+
+    result shouldBe a[Right[_, _]]
+    Files.exists(dir.resolve("json-subject-2.json")) shouldBe true
+  }
+
+  it should "download schema with null type using .avsc extension for backward compatibility" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val meta   = new SchemaMetadata(1, 1, null, Collections.emptyList(), """{"type":"string"}""")
+    when(client.getLatestSchemaMetadata("null-type-subject")).thenReturn(meta)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("null-type-subject"))
+
+    result shouldBe a[Right[_, _]]
+    Files.exists(dir.resolve("null-type-subject-1.avsc")) shouldBe true
+  }
+
+  it should "return error for unknown schema type" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val meta   = new SchemaMetadata(1, 1, "GRAPHQL", Collections.emptyList(), "type Query {}")
+    when(client.getLatestSchemaMetadata("unknown-type")).thenReturn(meta)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("unknown-type"))
+
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[DownloadError.UnsupportedSchemaType]
+  }
+
+  it should "download pinned schema with Protobuf type using .proto extension" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val schema = new Schema("proto-pinned", 2, 1, "PROTOBUF", Collections.emptyList(), """syntax = "proto3";""")
+    when(client.getByVersion("proto-pinned", 2, false)).thenReturn(schema)
+
+    val downloader = new Downloader(client, dir, testLogger)
+    val result     = downloader.schemaSubjectToFile(RegistrySubject("proto-pinned", 2))
+
+    result shouldBe a[Right[_, _]]
+    Files.exists(dir.resolve("proto-pinned-2.proto")) shouldBe true
+  }
 }

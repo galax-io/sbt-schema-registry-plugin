@@ -31,6 +31,7 @@
 
 ## Notes
 
-- All items pass. Spec is ready for `/speckit-clarify` or `/speckit-plan`.
-- Multi-file Protobuf imports explicitly scoped out in Assumptions section.
-- Backward compatibility for Avro-only users covered by FR-008 and SC-003.
+- All items pass. Spec is ready for `/speckit-plan`.
+- Local multi-file Protobuf imports scoped out; registry-level references in scope.
+- Backward compatibility for Avro-only users covered by FR-008, FR-011, and SC-003.
+- Re-validated after /speckit-clarify session 2026-06-15: 16/16 passing (no changes).

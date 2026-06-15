@@ -14,4 +14,7 @@ object Dependencies {
   lazy val mockitoScala: ModuleID = "org.mockito"   %% "mockito-scala-scalatest" % Versions.mockito
 
   lazy val testcontainersKafka: ModuleID = "org.testcontainers" % "kafka" % Versions.testcontainers
+
+  lazy val protobufProvider: ModuleID   = "io.confluent" % "kafka-protobuf-provider"    % Versions.schReqClient
+  lazy val jsonSchemaProvider: ModuleID = "io.confluent" % "kafka-json-schema-provider" % Versions.schReqClient
 }

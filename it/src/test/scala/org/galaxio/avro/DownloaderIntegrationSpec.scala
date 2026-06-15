@@ -2,7 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
-import io.confluent.kafka.schemaregistry.client.rest.entities.SchemaReference
+import io.confluent.kafka.schemaregistry.client.rest.entities.{SchemaReference => ConfluentSchemaReference}
 import org.apache.avro.Schema
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
@@ -212,7 +212,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     val mainSubject = "it-main-ref"
     val mainJson    =
       """{"type":"record","name":"Main","namespace":"org.galaxio","fields":[{"name":"base_id","type":"long"},{"name":"value","type":"string"}]}"""
-    val ref         = new SchemaReference("Base", baseSubject, 1)
+    val ref         = new ConfluentSchemaReference("Base", baseSubject, 1)
     val mainSchema  = new AvroSchema(mainJson, Collections.singletonList(ref), Collections.emptyMap[String, String](), null)
     registryClient.register(mainSubject, mainSchema)
 
@@ -264,5 +264,71 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       second shouldBe a[Right[_, _]]
       readFile(file) shouldBe schemaJson
     }
+  }
+
+  it should "download Protobuf schema with .proto extension" in withFixture { (dir, downloader) =>
+    val subject      = "it-dl-proto"
+    val protoContent = """syntax = "proto3"; message DlProto { string value = 1; }"""
+    val protoFile    = Files.createTempFile("dl-proto-", ".proto")
+    protoFile.toFile.deleteOnExit()
+    Files.write(protoFile, protoContent.getBytes("UTF-8"))
+    val reg          = RegistryRegistration(subject, protoFile.toFile, SchemaType.Protobuf)
+
+    val regResults = Registrar.registerAll(registryClient, List(reg))
+    regResults.head shouldBe a[Right[_, _]]
+
+    val result = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
+    result shouldBe a[Right[_, _]]
+    val file   = dir.resolve(s"$subject-1.proto")
+    Files.exists(file) shouldBe true
+  }
+
+  it should "download JSON Schema with .json extension" in withFixture { (dir, downloader) =>
+    val subject     = "it-dl-json"
+    val jsonContent = """{"type":"object","properties":{"id":{"type":"integer"}}}"""
+    val jsonFile    = Files.createTempFile("dl-json-", ".json")
+    jsonFile.toFile.deleteOnExit()
+    Files.write(jsonFile, jsonContent.getBytes("UTF-8"))
+    val reg         = RegistryRegistration(subject, jsonFile.toFile, SchemaType.Json)
+
+    val regResults = Registrar.registerAll(registryClient, List(reg))
+    regResults.head shouldBe a[Right[_, _]]
+
+    val result = downloader.schemaSubjectToFile(RegistrySubject.latest(subject))
+    result shouldBe a[Right[_, _]]
+    val file   = dir.resolve(s"$subject-1.json")
+    Files.exists(file) shouldBe true
+  }
+
+  it should "download mixed schema types with correct extensions" in withFixture { (dir, downloader) =>
+    val avroSubject  = "it-dl-mix-avro"
+    val protoSubject = "it-dl-mix-proto"
+    val jsonSubject  = "it-dl-mix-json"
+
+    val avroJson =
+      """{"type":"record","name":"MixAvro","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
+    registryClient.register(avroSubject, avroSchema(avroJson))
+
+    val protoFile = Files.createTempFile("mix-proto-", ".proto")
+    protoFile.toFile.deleteOnExit()
+    Files.write(protoFile, """syntax = "proto3"; message MixProto { string v = 1; }""".getBytes("UTF-8"))
+    Registrar.registerAll(registryClient, List(RegistryRegistration(protoSubject, protoFile.toFile, SchemaType.Protobuf)))
+
+    val jsonFile = Files.createTempFile("mix-json-", ".json")
+    jsonFile.toFile.deleteOnExit()
+    Files.write(jsonFile, """{"type":"object","properties":{"v":{"type":"string"}}}""".getBytes("UTF-8"))
+    Registrar.registerAll(registryClient, List(RegistryRegistration(jsonSubject, jsonFile.toFile, SchemaType.Json)))
+
+    val avroResult  = downloader.schemaSubjectToFile(RegistrySubject.latest(avroSubject))
+    val protoResult = downloader.schemaSubjectToFile(RegistrySubject.latest(protoSubject))
+    val jsonResult  = downloader.schemaSubjectToFile(RegistrySubject.latest(jsonSubject))
+
+    avroResult shouldBe a[Right[_, _]]
+    protoResult shouldBe a[Right[_, _]]
+    jsonResult shouldBe a[Right[_, _]]
+
+    Files.exists(dir.resolve(s"$avroSubject-1.avsc")) shouldBe true
+    Files.exists(dir.resolve(s"$protoSubject-1.proto")) shouldBe true
+    Files.exists(dir.resolve(s"$jsonSubject-1.json")) shouldBe true
   }
 }

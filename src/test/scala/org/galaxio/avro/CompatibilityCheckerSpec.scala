@@ -132,6 +132,45 @@ class CompatibilityCheckerSpec extends AnyFlatSpec with Matchers with MockitoSug
     report.isSuccess shouldBe true
   }
 
+  it should "return Failed for Protobuf schema when provider not on classpath" in {
+    val client = mock[SchemaRegistryClient]
+    val f      = tempFileWith("""syntax = "proto3";""")
+    val result = CompatibilityChecker.checkOne(
+      client,
+      RegistryRegistration("proto-compat", f, SchemaType.Protobuf),
+    )
+    result shouldBe a[CompatibilityResult.Failed]
+    result.asInstanceOf[CompatibilityResult.Failed].cause shouldBe a[RegistryError.RegistrationFailed]
+    result.asInstanceOf[CompatibilityResult.Failed].cause.message should include("Schema provider not on classpath")
+  }
+
+  it should "return Failed for JSON Schema when provider not on classpath" in {
+    val client = mock[SchemaRegistryClient]
+    val f      = tempFileWith("""{"type":"object"}""")
+    val result = CompatibilityChecker.checkOne(
+      client,
+      RegistryRegistration("json-compat", f, SchemaType.Json),
+    )
+    result shouldBe a[CompatibilityResult.Failed]
+    result.asInstanceOf[CompatibilityResult.Failed].cause shouldBe a[RegistryError.RegistrationFailed]
+    result.asInstanceOf[CompatibilityResult.Failed].cause.message should include("Schema provider not on classpath")
+  }
+
+  it should "pass references through to buildParsedSchema" in {
+    val client = mock[SchemaRegistryClient]
+    val f      = tempFileWith("""{"type":"record","name":"Test","fields":[{"name":"id","type":"long"}]}""")
+    val refs   = List(SchemaReference("Base", "base-subject", 1))
+
+    when(client.testCompatibilityVerbose(eqTo("ref-compat"), any[ParsedSchema]()))
+      .thenReturn(Collections.emptyList[String]())
+
+    val result = CompatibilityChecker.checkOne(
+      client,
+      RegistryRegistration("ref-compat", f, SchemaType.Avro, refs),
+    )
+    result shouldBe CompatibilityResult.Compatible("ref-compat")
+  }
+
   "CompatibilityChecker (empty config)" should "warn and succeed when no registrations configured" in {
     val client = mock[SchemaRegistryClient]
     val report = CompatibilityChecker.checkAll(client, List.empty)

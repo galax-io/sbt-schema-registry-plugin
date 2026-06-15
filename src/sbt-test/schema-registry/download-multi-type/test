@@ -1,0 +1,4 @@
+# Register schemas of all three types, download, and verify extensions.
+> Compile / schemaRegistryRegister
+> Compile / schemaRegistryDownload
+> checkDownload

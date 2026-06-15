@@ -29,6 +29,6 @@ object RegistryError {
   }
 
   final case class UnsupportedSchemaType(ext: String) extends RegistryError {
-    val message: String = s"Unsupported schema file extension: $ext"
+    val message: String = s"Unsupported schema type or extension: '$ext'. Supported: avsc (Avro), proto (Protobuf), json (JSON)"
   }
 }

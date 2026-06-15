@@ -12,8 +12,8 @@ import java.io.File
 
 class RegistrarSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
-  private def tempFileWith(content: String): File = {
-    val f = File.createTempFile("schema-", ".avsc")
+  private def tempFileWith(content: String, suffix: String = ".avsc"): File = {
+    val f = File.createTempFile("schema-", suffix)
     f.deleteOnExit()
     java.nio.file.Files.write(f.toPath, content.getBytes("UTF-8"))
     f
@@ -110,5 +110,69 @@ class RegistrarSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val (errors, successes)                = Registrar.partitionResults(results)
     errors shouldBe List("e1", "e2")
     successes shouldBe empty
+  }
+
+  "Registrar.buildParsedSchema" should "build Avro schema from valid content" in {
+    val result = Registrar.buildParsedSchema("test", """{"type":"string"}""", SchemaType.Avro)
+    result shouldBe a[Right[_, _]]
+    result.right.get.schemaType() shouldBe "AVRO"
+  }
+
+  it should "return RegistrationFailed for invalid Avro content" in {
+    val result = Registrar.buildParsedSchema("test", "not valid avro", SchemaType.Avro)
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[RegistryError.RegistrationFailed]
+  }
+
+  it should "return RegistrationFailed for Protobuf when provider not on classpath" in {
+    val result = Registrar.buildParsedSchema("test", "syntax = \"proto3\";", SchemaType.Protobuf)
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[RegistryError.RegistrationFailed]
+    result.left.get.message should include("Schema provider not on classpath")
+  }
+
+  it should "return RegistrationFailed for Json when provider not on classpath" in {
+    val result = Registrar.buildParsedSchema("test", """{"type":"object"}""", SchemaType.Json)
+    result shouldBe a[Left[_, _]]
+    result.left.get shouldBe a[RegistryError.RegistrationFailed]
+    result.left.get.message should include("Schema provider not on classpath")
+  }
+
+  it should "build Avro schema with references" in {
+    val refs   = List(SchemaReference("Base", "base-subject", 1))
+    val result = Registrar.buildParsedSchema("test", """{"type":"string"}""", SchemaType.Avro, refs)
+    result shouldBe a[Right[_, _]]
+    result.right.get.references() should have size 1
+  }
+
+  it should "be extension-agnostic — schema type is determined by the SchemaType parameter, not the file" in {
+    val result = Registrar.buildParsedSchema("test", """{"type":"string"}""", SchemaType.Avro)
+    result shouldBe a[Right[_, _]]
+    result.right.get.schemaType() shouldBe "AVRO"
+  }
+
+  it should "include dependency name in error for missing Protobuf provider" in {
+    val result = Registrar.buildParsedSchema("test", "syntax = \"proto3\";", SchemaType.Protobuf)
+    result shouldBe a[Left[_, _]]
+    result.left.get.message should include("kafka-protobuf-provider")
+  }
+
+  it should "include dependency name in error for missing JSON provider" in {
+    val result = Registrar.buildParsedSchema("test", """{"type":"object"}""", SchemaType.Json)
+    result shouldBe a[Left[_, _]]
+    result.left.get.message should include("kafka-json-schema-provider")
+  }
+
+  "Registrar.registerAll" should "pass references from RegistryRegistration to client" in {
+    val client = mock[SchemaRegistryClient]
+    val f      = tempFileWith("""{"type":"string"}""")
+    val refs   = List(SchemaReference("Base", "base-subject", 1))
+
+    when(client.register(eqTo("ref-sub"), any[ParsedSchema]())).thenReturn(1)
+
+    val regs    = List(RegistryRegistration("ref-sub", f, SchemaType.Avro, refs))
+    val results = Registrar.registerAll(client, regs)
+    results should have size 1
+    results.head shouldBe Right(RegisteredSchema("ref-sub", 1))
   }
 }
