@@ -2,8 +2,8 @@ import org.galaxio.avro.RegistrySubject
 
 lazy val root = (project in file("."))
   .settings(
-    scalaVersion                := "2.12.21",
-    schemaRegistryUrl           := RegistryFixture.url,
-    schemaRegistryParallelism   := 0,
-    schemaRegistrySubjects      += RegistrySubject(RegistryFixture.subjectA, 1),
+    scalaVersion              := "2.12.21",
+    schemaRegistryUrl         := "http://127.0.0.1:1",
+    schemaRegistryParallelism := 0,
+    schemaRegistrySubjects    += RegistrySubject("does-not-matter", 1),
   )
