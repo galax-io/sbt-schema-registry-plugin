@@ -26,6 +26,10 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       settingKey[Seq[String]]("Regex patterns to match subjects for download")
     val schemaRegistryIncremental       =
       settingKey[Boolean]("Enable incremental download — skip unchanged schemas")
+    val schemaRegistryParallelism       =
+      settingKey[Int]("Number of concurrent schema downloads (1 = sequential)")
+    val schemaRegistryRetries           =
+      settingKey[Int]("Maximum retry attempts for transient download failures (0 = no retry)")
 
     lazy val defaultSettings: Seq[Setting[?]] = Seq(
       schemaRegistryUrl             := "http://localhost:8081",
@@ -37,6 +41,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       schemaRegistryAuth            := None,
       schemaRegistryProperties      := Map.empty,
       schemaRegistryIncremental     := true,
+      schemaRegistryParallelism     := 4,
+      schemaRegistryRetries         := 3,
     )
   }
 
@@ -74,6 +80,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       val subjects     = schemaRegistrySubjects.value
       val patterns     = schemaRegistrySubjectPatterns.value
       val incremental  = schemaRegistryIncremental.value
+      val parallelism  = schemaRegistryParallelism.value
+      val retries      = schemaRegistryRetries.value
       val manifestFile =
         streams.value.cacheDirectory.toPath.resolve(".schema-versions.json")
 
@@ -82,6 +90,13 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       logger.debug(s"schemaRegistrySubjects: ${subjects.mkString(", ")}")
       logger.debug(s"schemaRegistrySubjectPatterns: ${patterns.mkString(", ")}")
       logger.debug(s"schemaRegistryIncremental: $incremental")
+      logger.debug(s"schemaRegistryParallelism: $parallelism")
+      logger.debug(s"schemaRegistryRetries: $retries")
+
+      if (parallelism < 1 || parallelism > ParallelDownloader.MaxParallelism)
+        sys.error(DownloadError.InvalidParallelism(parallelism).message)
+      if (retries < 0 || retries > ParallelDownloader.MaxRetries)
+        sys.error(DownloadError.InvalidRetryConfig(retries).message)
 
       if (subjects.isEmpty && patterns.isEmpty) {
         logger.warn(
@@ -135,20 +150,22 @@ object SchemaDownloaderPlugin extends AutoPlugin {
             case _                              => ()
           }
 
-          val downloader =
+          val downloader         =
             Downloader.withExternalClient(client, schemaRegistryTargetFolder.value.toPath, logger)
+          val retryPolicy        = RetryPolicy(maxRetries = retries)
+          val parallelDownloader = ParallelDownloader(downloader, parallelism, retryPolicy, logger)
 
-          val downloadResults = downloads.collect { case d @ DownloadDecision.Download(subject, reason, _) =>
-            logger.info(s"${subject.name}: $reason")
-            d -> downloader.schemaSubjectToFile(subject)
-          }
+          val toDownload = downloads.collect { case d: DownloadDecision.Download => d }
+          toDownload.foreach(d => logger.info(s"${d.subject.name}: ${d.reason}"))
 
-          val failures = downloadResults.collect { case (d, Left(e)) => d.subject -> e }
+          val downloadResults = parallelDownloader.downloadAll(toDownload.map(_.subject))
 
-          val downloaded = downloadResults.collect {
-            case (d, Right(_)) if d.resolvedVersion.isDefined =>
-              d.subject.name -> d.resolvedVersion.get
-          }
+          val decisionsMap = toDownload.map(d => d.subject.name -> d).toMap
+          val failures     = downloadResults.collect { case (s, Left(e)) => s -> e }
+
+          val downloaded = downloadResults.collect { case (s, Right(_)) =>
+            decisionsMap.get(s.name).flatMap(_.resolvedVersion).map(s.name -> _)
+          }.flatten
 
           if (incremental && downloaded.nonEmpty) {
             val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
@@ -163,7 +180,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
             sys.error(s"Failed to download ${failures.size} schema(s)")
           }
 
-          logger.info(s"${downloads.size} downloaded, ${skips.size} skipped")
+          val succeeded = downloadResults.count(_._2.isRight)
+          logger.info(s"$succeeded downloaded, ${skips.size} skipped, ${failures.size} failed")
         }
       }
     },
