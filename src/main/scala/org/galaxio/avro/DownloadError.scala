@@ -41,4 +41,12 @@ object DownloadError {
     val message: String                   = s"Failed to parse version manifest: ${error.getMessage}"
     override val cause: Option[Throwable] = Some(error)
   }
+
+  final case class InvalidParallelism(value: Int) extends DownloadError {
+    val message: String = s"Invalid parallelism value $value: must be between 1 and 32"
+  }
+
+  final case class InvalidRetryConfig(value: Int) extends DownloadError {
+    val message: String = s"Invalid retry count $value: must be between 0 and 10"
+  }
 }

@@ -1,0 +1,2 @@
+# Parallelism=0 must be rejected with an error.
+-> Compile / schemaRegistryDownload
