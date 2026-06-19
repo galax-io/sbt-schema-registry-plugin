@@ -69,20 +69,11 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
     ()
   }
 
-  /** The same fetch closure the plugin wires — reads references from a real registry. */
-  private val fetch: (String, Option[Int]) => Either[DownloadError, ResolvedSchema] =
-    (subject, version) =>
-      Try {
-        val meta = version match {
-          case Some(v) => registryClient.getSchemaMetadata(subject, v)
-          case None    => registryClient.getLatestSchemaMetadata(subject)
-        }
-        val refs = Option(meta.getReferences)
-          .map(_.asScala.toList)
-          .getOrElse(Nil)
-          .map(r => SchemaReference(r.getName, r.getSubject, r.getVersion.intValue))
-        ResolvedSchema(subject, meta.getVersion: Int, refs)
-      }.toEither.left.map(DownloadError.SchemaFetchFailed(subject, _))
+  /** The exact fetch the plugin wires — reads references from a real registry.
+    * `lazy` so `registryClient` (set in `beforeAll`) is captured after init, not at construction.
+    */
+  private lazy val fetch: (String, Option[Int]) => Either[DownloadError, ResolvedSchema] =
+    Downloader.referenceFetch(registryClient)
 
   private def withTempDir(test: Path => Any): Unit = {
     val dir = Files.createTempDirectory("reference-resolution-it")

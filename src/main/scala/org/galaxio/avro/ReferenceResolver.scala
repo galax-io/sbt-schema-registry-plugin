@@ -27,7 +27,9 @@ object ReferenceResolver {
   /** @param roots
     *   requested subjects (Latest or Pinned)
     * @param fetch
-    *   `(subject, Some(version)=pinned | None=latest) => resolved schema`
+    *   `(subject, Some(version)=pinned | None=latest) => resolved schema`. `fetch` MUST return a `ResolvedSchema` whose
+    *   `subject` equals the requested subject — the dedup/visited keys and the emitted `Pinned` entries are derived from
+    *   `resolved.subject`.
     * @return
     *   roots-first, deduped list of `RegistrySubject.Pinned`, or the first fetch error
     */
@@ -55,11 +57,14 @@ object ReferenceResolver {
                 loop(rest, enqueued, visited, acc)
               } else {
                 // Skip a child if it is already queued, or if its pinned version is already
-                // resolved (prevents cyclic back-edges from refetching). Divergent versions
-                // of the same subject survive because their pinned versions differ.
+                // resolved (prevents cyclic back-edges from refetching). `distinct` collapses a
+                // schema that declares the same (subject, version) reference more than once, so it
+                // is not enqueued (and refetched) twice. Divergent versions of the same subject
+                // survive because their pinned versions differ.
                 val newChildren: List[(String, Option[Int])] =
                   resolved.references
                     .map(r => (r.subject, Some(r.version)))
+                    .distinct
                     .filterNot { case (s, v) =>
                       enqueued.contains((s, v)) || v.exists(ver => visited.contains((s, ver)))
                     }

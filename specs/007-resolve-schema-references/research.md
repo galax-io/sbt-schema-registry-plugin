@@ -58,12 +58,16 @@ manifest-update**.
   incremental order.
 - *Before parallel-fetch*: the content-writing stage must see the complete expanded list.
 
-**Double-fetch tension**: resolution fetches metadata to read references; download fetches the
-body. Both share the **same `CachedSchemaRegistryClient` instance** (threaded through
-`withRegistryClient`, default cache 200). `getByVersion(subject, version, …)` is cached by
-(subject, version), so resolution warms the cache and the download fetch is a cache hit. No new
-caching layer — requirement is only "resolution and download share one client," which current
-wiring already satisfies.
+**Double-fetch tension**: resolution fetches metadata (`getSchemaMetadata` /
+`getLatestSchemaMetadata`) to read references; download fetches the body
+(`getByVersion(subject, version, false)`). These are *different* client methods, and
+`CachedSchemaRegistryClient`'s cache is keyed on schema↔id mappings, **not** on version
+metadata — so in practice resolution adds roughly one metadata REST round-trip per schema on
+top of the download fetch. This is acceptable: reference graphs are small (tens of nodes) and
+resolution runs once, sequentially, before the parallel body download. We deliberately do **not**
+fold bodies into resolution to save that round-trip (see Decision 4) — the clean stage separation
+is worth more than one small GET per schema. Both stages do share the one client instance
+(threaded through `withRegistryClient`), so id-keyed cache hits still help where applicable.
 
 **Insertion point**: `SchemaDownloaderPlugin.scala`, between `SubjectResolver.resolve` (~line 127)
 and `loadManifest` / `IncrementalResolver.plan` (~line 129–139).
@@ -132,8 +136,8 @@ subject corner is sub-optimal.
 
 **Alternative considered**: have `ResolvedSchema` also carry the body and bypass the download
 fetch (rejected — would duplicate `Downloader.writeSchema`, and either serialize writes (lose
-parallelism) or re-plumb parallelism into the resolver (lose purity); the shared cache already
-removes the network cost of the second fetch).
+parallelism) or re-plumb parallelism into the resolver (lose purity)). It would save the ~1
+metadata round-trip per schema, but the clean stage separation is worth more than that.
 
 ## Decision 5 — Setting & backward compatibility
 
@@ -156,7 +160,7 @@ bump).
 | Reference API surface | `SchemaMetadata.getReferences()` → `rest.entities.SchemaReference` (Decision 1) |
 | `getVersion` type | boxed `Integer` in 8.2.1 — unbox explicitly (Decision 1) |
 | Where resolution runs | new stage between expand and skip (Decision 2) |
-| Avoiding double network fetch | shared `CachedSchemaRegistryClient` (Decision 2) |
+| Double fetch cost | ~1 metadata round-trip per schema (not cached); accepted, graphs small (Decision 2) |
 | Cycle + divergent-version correctness | two-level dedup: enqueue `(subj,Option[Int])` / visited `(subj,Int)` (Decision 3) |
 | New error type? | No — reuse `DownloadError.SchemaFetchFailed` (Decision 3) |
 | Output type | `List[RegistrySubject.Pinned]`, roots-first (Decision 4) |

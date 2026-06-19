@@ -37,10 +37,11 @@ identity pass-through, preserving today's behavior byte-for-byte.
 
 **Project Type**: Single-project sbt plugin (library/build-tool)
 
-**Performance Goals**: Reference graph walk is sequential metadata fetches warmed by the
-shared `CachedSchemaRegistryClient`; bulk body download stays parallel via the existing
-`ParallelDownloader`. No new performance target beyond "resolution adds no second network
-round-trip per schema thanks to the shared client cache."
+**Performance Goals**: Reference graph walk is sequential metadata fetches; bulk body download
+stays parallel via the existing `ParallelDownloader`. Resolution adds roughly one metadata REST
+round-trip per schema (its `getSchemaMetadata` call is not served from the download fetch's
+id-keyed cache) — acceptable because graphs are small and resolution runs once. No new
+performance target.
 
 **Constraints**: Compile with `-Xfatal-warnings` (no warnings); `scalafmtAll` +
 `scalafmtSbt` must pass; backward-compatible public API (additive keys only); resolver must

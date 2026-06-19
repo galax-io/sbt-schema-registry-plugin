@@ -36,7 +36,9 @@ schemaRegistryResolveReferences := true,
 5. manifest update                                                                   (unchanged)
 ```
 
-`fetch` closure (shares the existing cached `client`, so stage 4's body fetch is a cache hit):
+`fetch` closure (built by `Downloader.referenceFetch(client)`; shares the existing `client`. Note
+it uses `getSchemaMetadata`, a different call than the download's `getByVersion`, so it adds ~1
+metadata round-trip per schema rather than warming the body fetch):
 
 ```scala
 val fetch: (String, Option[Int]) => Either[DownloadError, ResolvedSchema] =

@@ -156,6 +156,20 @@ class ReferenceResolverSpec extends AnyFlatSpec with Matchers {
     counts.values.sum shouldBe 4 // A, B, C, D each exactly once
   }
 
+  // --- A schema declaring the same reference twice is fetched once ---
+
+  it should "fetch a duplicated reference only once" in {
+    val g           = Map(
+      k("A")          -> schema("A", 1, ref("B", 1), ref("B", 1)),
+      k("B", Some(1)) -> schema("B", 1),
+    )
+    val (f, counts) = counting(stub(g))
+    val out         = ReferenceResolver.resolve(List(RegistrySubject.Latest("A")), f).getOrElse(fail())
+
+    out shouldBe List(pinned("A", 1), pinned("B", 1))
+    counts.getOrElse(k("B", Some(1)), 0) shouldBe 1
+  }
+
   // --- Pinned roots pass through their own version ---
 
   it should "resolve a pinned root at its pinned version (RR-2 variant)" in {

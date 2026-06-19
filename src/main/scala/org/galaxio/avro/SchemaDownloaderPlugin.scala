@@ -6,7 +6,6 @@ import Keys.*
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path => JPath}
-import scala.collection.JavaConverters._
 import scala.util.{Try, Using}
 
 object SchemaDownloaderPlugin extends AutoPlugin {
@@ -135,19 +134,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
           val expandedSubjects: List[RegistrySubject] =
             if (!resolveRefs) resolvedSubjects.toList
             else {
-              val fetch: (String, Option[Int]) => Either[DownloadError, ResolvedSchema] =
-                (subject, version) =>
-                  Try {
-                    val meta = version match {
-                      case Some(v) => client.getSchemaMetadata(subject, v)
-                      case None    => client.getLatestSchemaMetadata(subject)
-                    }
-                    val refs = Option(meta.getReferences)
-                      .map(_.asScala.toList)
-                      .getOrElse(Nil)
-                      .map(r => SchemaReference(r.getName, r.getSubject, r.getVersion.intValue))
-                    ResolvedSchema(subject, meta.getVersion: Int, refs)
-                  }.toEither.left.map(DownloadError.SchemaFetchFailed(subject, _))
+              val fetch = Downloader.referenceFetch(client)
 
               ReferenceResolver.resolve(resolvedSubjects.toList, fetch) match {
                 case Left(err)       =>
