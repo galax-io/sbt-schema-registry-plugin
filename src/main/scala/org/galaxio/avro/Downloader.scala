@@ -5,6 +5,7 @@ import sbt.util.Logger
 
 import java.nio.file.{Files, Path}
 import java.util.{Collections, HashMap => JHashMap}
+import scala.collection.JavaConverters._
 import scala.util.Try
 
 final class Downloader private[avro] (
@@ -71,6 +72,28 @@ final class Downloader private[avro] (
 
 object Downloader {
   val defaultCacheSize = 200
+
+  /** Build the `fetch` function [[ReferenceResolver]] needs, backed by a registry client.
+    *
+    * Reads a schema's metadata (`getSchemaMetadata` for a pinned version, `getLatestSchemaMetadata` for latest) and maps its
+    * references to the domain [[SchemaReference]]. Confluent's `getReferences` may be null and its `getVersion` is a boxed
+    * `Integer`, both handled here. Shared by the download task and integration tests so they exercise the same mapping.
+    */
+  private[avro] def referenceFetch(
+      client: SchemaRegistryClient,
+  ): (String, Option[Int]) => Either[DownloadError, ResolvedSchema] =
+    (subject, version) =>
+      Try {
+        val meta = version match {
+          case Some(v) => client.getSchemaMetadata(subject, v)
+          case None    => client.getLatestSchemaMetadata(subject)
+        }
+        val refs = Option(meta.getReferences)
+          .map(_.asScala.toList)
+          .getOrElse(Nil)
+          .map(r => SchemaReference(r.getName, r.getSubject, r.getVersion.intValue))
+        ResolvedSchema(subject, meta.getVersion: Int, refs)
+      }.toEither.left.map(DownloadError.SchemaFetchFailed(subject, _))
 
   private[avro] def buildConfig(
       auth: Option[SchemaRegistryAuth],

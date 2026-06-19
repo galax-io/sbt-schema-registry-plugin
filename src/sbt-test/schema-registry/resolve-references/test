@@ -1,0 +1,15 @@
+# Register base + dependent (with a reference), then download only the dependent via a
+# wildcard pattern. Reference resolution (default ON) must also fetch the base schema.
+> Compile / schemaRegistryRegister
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Dependent-1.avsc
+$ exists src/main/avro/it.e2e.Base-1.avsc
+
+# Opt-out: disable reference resolution and re-download — only the dependent is fetched,
+# the referenced base schema must NOT appear.
+$ delete src/main/avro/it.e2e.Dependent-1.avsc
+$ delete src/main/avro/it.e2e.Base-1.avsc
+> set schemaRegistryResolveReferences := false
+> Compile / schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Dependent-1.avsc
+$ absent src/main/avro/it.e2e.Base-1.avsc

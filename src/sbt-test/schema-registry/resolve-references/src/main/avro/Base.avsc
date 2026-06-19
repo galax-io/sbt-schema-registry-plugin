@@ -1,0 +1,1 @@
+{"type":"record","name":"Base","namespace":"it.e2e","fields":[{"name":"id","type":"long"}]}

@@ -30,19 +30,22 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       settingKey[Int]("Number of concurrent schema downloads (1 = sequential)")
     val schemaRegistryRetries           =
       settingKey[Int]("Maximum retry attempts for transient download failures (0 = no retry)")
+    val schemaRegistryResolveReferences =
+      settingKey[Boolean]("Auto-download schemas referenced by downloaded schemas (transitive)")
 
     lazy val defaultSettings: Seq[Setting[?]] = Seq(
-      schemaRegistryUrl             := "http://localhost:8081",
-      schemaRegistryTargetFolder    := sourceDirectory.value / "main" / "avro",
-      schemaRegistrySubjects        := Seq(),
-      schemaRegistrySubjectPatterns := Seq(),
-      schemaRegistryRegistrations   := Seq(),
-      schemaRegistryCacheSize       := Downloader.defaultCacheSize,
-      schemaRegistryAuth            := None,
-      schemaRegistryProperties      := Map.empty,
-      schemaRegistryIncremental     := true,
-      schemaRegistryParallelism     := 4,
-      schemaRegistryRetries         := 3,
+      schemaRegistryUrl               := "http://localhost:8081",
+      schemaRegistryTargetFolder      := sourceDirectory.value / "main" / "avro",
+      schemaRegistrySubjects          := Seq(),
+      schemaRegistrySubjectPatterns   := Seq(),
+      schemaRegistryRegistrations     := Seq(),
+      schemaRegistryCacheSize         := Downloader.defaultCacheSize,
+      schemaRegistryAuth              := None,
+      schemaRegistryProperties        := Map.empty,
+      schemaRegistryIncremental       := true,
+      schemaRegistryParallelism       := 4,
+      schemaRegistryRetries           := 3,
+      schemaRegistryResolveReferences := true,
     )
   }
 
@@ -82,6 +85,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       val incremental  = schemaRegistryIncremental.value
       val parallelism  = schemaRegistryParallelism.value
       val retries      = schemaRegistryRetries.value
+      val resolveRefs  = schemaRegistryResolveReferences.value
       val manifestFile =
         streams.value.cacheDirectory.toPath.resolve(".schema-versions.json")
 
@@ -92,6 +96,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       logger.debug(s"schemaRegistryIncremental: $incremental")
       logger.debug(s"schemaRegistryParallelism: $parallelism")
       logger.debug(s"schemaRegistryRetries: $retries")
+      logger.debug(s"schemaRegistryResolveReferences: $resolveRefs")
 
       if (parallelism < 1 || parallelism > ParallelDownloader.MaxParallelism)
         sys.error(DownloadError.InvalidParallelism(parallelism).message)
@@ -126,19 +131,35 @@ object SchemaDownloaderPlugin extends AutoPlugin {
             }
           }
 
+          val expandedSubjects: List[RegistrySubject] =
+            if (!resolveRefs) resolvedSubjects.toList
+            else {
+              val fetch = Downloader.referenceFetch(client)
+
+              ReferenceResolver.resolve(resolvedSubjects.toList, fetch) match {
+                case Left(err)       =>
+                  err.cause.foreach(logger.trace(_))
+                  sys.error(err.message)
+                case Right(expanded) =>
+                  val extra = expanded.size - resolvedSubjects.size
+                  if (extra > 0) logger.info(s"Resolved $extra referenced schema(s)")
+                  expanded
+              }
+            }
+
           val manifest = loadManifest(manifestFile, incremental, logger)
 
           val decisions =
             if (incremental)
               IncrementalResolver.plan(
                 manifest,
-                resolvedSubjects.toList,
+                expandedSubjects,
                 s =>
                   Try(client.getLatestSchemaMetadata(s).getVersion: Int).toEither.left
                     .map(DownloadError.SchemaFetchFailed(s, _)),
               )
             else
-              resolvedSubjects.toList.map(s => DownloadDecision.Download(s, "incremental disabled"))
+              expandedSubjects.map(s => DownloadDecision.Download(s, "incremental disabled"))
 
           val (skips, downloads) = decisions.partition {
             case _: DownloadDecision.Skip => true
