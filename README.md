@@ -78,21 +78,97 @@ sbt "Compile / schemaRegistryDownload"
 Schema files are saved as `<subject>-<version>.avsc` in `schemaRegistryTargetFolder` (default: `src/main/avro`).
 The build will fail if any schema download fails.
 
-> **Output file behaviour**: every run overwrites existing `.avsc` files unconditionally. There is no
-> incremental caching — the task always fetches the schema from the registry and writes the file afresh.
-> For `RegistrySubject.latest(...)` subjects the version number is resolved at task-run time, so the
+> **Output file behaviour**: by default incremental download is enabled
+> (`schemaRegistryIncremental := true`). The task records downloaded versions in a manifest
+> (`.schema-versions.json` under the project's sbt cache directory) and skips any subject whose
+> version is already current, so unchanged schemas are not re-fetched or re-written. Set
+> `schemaRegistryIncremental := false` to overwrite every file on every run. For
+> `RegistrySubject.latest(...)` subjects the version number is resolved at task-run time, so the
 > output filename (e.g. `my-subject-7.avsc`) may change between runs when the latest version advances.
 
 ## Settings
 
-| Parameter                    | Description                              | Default                |
-|------------------------------|------------------------------------------|------------------------|
-| `schemaRegistrySubjects`     | List of schema subjects with versions    | `Seq()`                |
-| `schemaRegistryUrl`          | URL of the schema registry               | `http://localhost:8081` |
-| `schemaRegistryTargetFolder` | Output directory for downloaded schemas   | `src/main/avro`        |
-| `schemaRegistryCacheSize`    | Schema registry client cache size        | `200`                  |
-| `schemaRegistryAuth`         | Authentication credentials               | `None`                 |
-| `schemaRegistryProperties`   | Additional schema registry client config | `Map.empty`            |
+| Parameter                         | Description                                                       | Default                 |
+|-----------------------------------|------------------------------------------------------------------|-------------------------|
+| `schemaRegistrySubjects`          | List of schema subjects with versions                            | `Seq()`                 |
+| `schemaRegistrySubjectPatterns`   | Regex patterns to match subjects for download                    | `Seq()`                 |
+| `schemaRegistryUrl`               | URL of the schema registry                                       | `http://localhost:8081` |
+| `schemaRegistryTargetFolder`      | Output directory for downloaded schemas                          | `src/main/avro`         |
+| `schemaRegistryCacheSize`         | Schema registry client cache size                                | `200`                   |
+| `schemaRegistryAuth`              | Authentication credentials                                       | `None`                  |
+| `schemaRegistryProperties`        | Additional schema registry client config                         | `Map.empty`             |
+| `schemaRegistryIncremental`       | Enable incremental download — skip unchanged schemas             | `true`                  |
+| `schemaRegistryParallelism`       | Number of concurrent schema downloads (1 = sequential)           | `4`                     |
+| `schemaRegistryRetries`           | Maximum retry attempts for transient download failures (0 = none) | `3`                    |
+| `schemaRegistryResolveReferences` | Auto-download referenced schemas transitively                    | `true`                  |
+
+## Schema References
+
+Schemas can reference other schemas (e.g. an `Order` that embeds a `Customer` type). Confluent
+Schema Registry tracks these references; downloading the referencing schema alone is not enough —
+consumers also need the referenced schemas.
+
+When `schemaRegistryResolveReferences` is `true` (the default), downloading a subject also
+downloads every schema it references, transitively. Each referenced schema is fetched at the
+**exact version** recorded in the reference (pinned, not latest) and written using the normal
+`<subject>-<version>.<ext>` layout, so a single download run produces a complete, self-contained
+set of files.
+
+```sbt
+schemaRegistrySubjects += RegistrySubject.latest("order-value")
+// If order-value references customer-value, both files are downloaded:
+//   src/main/avro/order-value-3.avsc
+//   src/main/avro/customer-value-1.avsc
+```
+
+Resolution is cycle-safe (a reference graph with cycles terminates) and de-duplicates by
+subject+version, so a shared dependency is written once while two genuinely different pinned
+versions of the same subject are written as separate files. The first failed reference fetch fails
+the whole task with an error naming the failing subject.
+
+To download only the explicitly requested subjects (the pre-1.7 behaviour), disable it:
+
+```sbt
+schemaRegistryResolveReferences := false
+```
+
+> **Known limitation**: the incremental-download manifest keys by subject name (one version per
+> subject). If a single run resolves two different versions of the same subject, only the
+> last-written version is recorded, so the other may be re-downloaded (identical bytes) on a
+> later incremental run. This is wasteful but never incorrect, and only affects the rare
+> divergent-version case.
+
+## Download Options
+
+### Wildcard subject patterns
+
+Select subjects by regex instead of (or in addition to) listing them explicitly. Patterns are
+matched against every subject reported by the registry; each match is downloaded at its latest
+version.
+
+```sbt
+schemaRegistrySubjectPatterns := Seq("""order-.*-value""", """.*\.events""")
+```
+
+### Incremental download
+
+Enabled by default. Downloaded versions are tracked in a `.schema-versions.json` manifest under
+the project's sbt cache directory, and subjects already at the current version are skipped.
+Disable to always re-fetch and overwrite:
+
+```sbt
+schemaRegistryIncremental := false
+```
+
+### Parallel downloads
+
+Schemas are fetched concurrently with a bounded thread pool. Tune the degree of concurrency
+(1 = sequential) and the retry budget for transient failures:
+
+```sbt
+schemaRegistryParallelism := 8   // 1..32
+schemaRegistryRetries     := 3   // 0..10, 0 = no retry
+```
 
 ## Schema Registration (Push)
 
