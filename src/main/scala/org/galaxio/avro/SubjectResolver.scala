@@ -35,15 +35,7 @@ object SubjectResolver {
   private def compilePatterns(
       regexes: List[String],
   ): Either[DownloadError, List[scala.util.matching.Regex]] =
-    regexes
-      .foldLeft(Right(Nil): Either[DownloadError, List[scala.util.matching.Regex]]) { (acc, r) =>
-        acc.flatMap { compiled =>
-          Try(r.r).toEither.left
-            .map(e => DownloadError.InvalidPattern(r, e))
-            .map(_ :: compiled)
-        }
-      }
-      .map(_.reverse)
+    EitherOps.traverse(regexes)(r => Try(r.r).toEither.left.map(e => DownloadError.InvalidPattern(r, e)))
 
   // Loads all subjects into memory; O(subjects × patterns) filtering
   private def matchSubjects(
