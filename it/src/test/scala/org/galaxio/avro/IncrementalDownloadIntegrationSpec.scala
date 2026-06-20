@@ -101,9 +101,13 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
 
       val downloader = Downloader.withExternalClient(registryClient, outputDir, silentLogger)
       val downloaded = decisions.collect { case d @ DownloadDecision.Download(subject, _, _) =>
-        downloader.schemaSubjectToFile(subject)
+        downloader.schemaSubjectToFile(subject) shouldBe a[Right[_, _]]
         subject.name -> d.resolvedVersion.get
       }
+
+      // The download actually wrote both files (its Either was previously discarded).
+      Files.exists(outputDir.resolve(s"$orderSubject-1.avsc")) shouldBe true
+      Files.exists(outputDir.resolve(s"$userSubject-1.avsc")) shouldBe true
 
       val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
       newManifest.versions should have size 2

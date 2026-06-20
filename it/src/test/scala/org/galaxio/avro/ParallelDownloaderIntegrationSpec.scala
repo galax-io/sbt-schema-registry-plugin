@@ -96,12 +96,15 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with B
     val pd      = ParallelDownloader(downloader, parallelism = 2, noRetry, silentLogger)
     val results = pd.downloadAll(subjects)
 
-    results should have size 3
-    results.count(_._2.isRight) shouldBe 2
-    results.count(_._2.isLeft) shouldBe 1
+    val bySubject = results.map { case (s, r) => s.name -> r }.toMap
+    bySubject("nonexistent-subject") shouldBe a[Left[_, _]]
+    bySubject("nonexistent-subject").left.get shouldBe a[DownloadError.SchemaFetchFailed]
+    bySubject("test-subject-1") shouldBe a[Right[_, _]]
+    bySubject("test-subject-3") shouldBe a[Right[_, _]]
 
-    val files = outDir.toFile.listFiles()
-    files should have length 2
+    // Exactly the two good subjects landed on disk — the failed one wrote nothing.
+    outDir.toFile.listFiles().map(_.getName).toSet shouldBe
+      Set("test-subject-1-1.avsc", "test-subject-3-1.avsc")
   }
 
   it should "download sequentially with parallelism 1" in {
@@ -139,8 +142,13 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with B
     results should have size 5
     results.count(_._2.isRight) shouldBe 5
 
-    val downloaded = results.collect { case (s, Right(_)) => s.name -> 1 }
+    // Build the manifest from the REAL registry version, not a hard-coded 1, so the second-pass
+    // skip is a genuine version match rather than a coincidence.
+    val downloaded  = results.collect { case (s, Right(_)) =>
+      s.name -> registryClient.getLatestSchemaMetadata(s.name).getVersion.intValue
+    }
     val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
+    newManifest.versionOf("test-subject-1") shouldBe Some(1)
 
     val decisions2  = IncrementalResolver.plan(
       newManifest,

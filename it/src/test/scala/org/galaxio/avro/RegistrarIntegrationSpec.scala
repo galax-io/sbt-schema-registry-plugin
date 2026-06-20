@@ -77,6 +77,11 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
     val registered = results.head.toOption.get
     registered.subject shouldBe "it-register-test"
     registered.schemaId should be > 0
+
+    // The live registry must actually have stored it: read the schema back and parse it.
+    val meta = registryClient.getLatestSchemaMetadata("it-register-test")
+    meta.getSchemaType shouldBe "AVRO"
+    new org.apache.avro.Schema.Parser().parse(meta.getSchema).getFullName shouldBe "org.galaxio.RegTest"
   }
 
   it should "return same schema ID for idempotent registration" in {
@@ -190,6 +195,14 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
       List(RegistryRegistration("it-proto-ref-dep", depFile, SchemaType.Protobuf, depRefs)),
     )
     depRegs.head shouldBe a[Right[_, _]]
+
+    // Prove the reference was actually stored on the dependent subject (not silently dropped).
+    val refs = registryClient.getLatestSchemaMetadata("it-proto-ref-dep").getReferences
+    refs.size shouldBe 1
+    val ref = refs.get(0)
+    ref.getName shouldBe "BaseMsg.proto"
+    ref.getSubject shouldBe "it-proto-ref-base"
+    ref.getVersion.intValue shouldBe 1
   }
 
   it should "register JSON Schema with references" in {
@@ -216,6 +229,14 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
       List(RegistryRegistration("it-json-ref-dep", depFile, SchemaType.Json, depRefs)),
     )
     depRegs.head shouldBe a[Right[_, _]]
+
+    // Prove the reference was actually stored on the dependent subject (not silently dropped).
+    val refs = registryClient.getLatestSchemaMetadata("it-json-ref-dep").getReferences
+    refs.size shouldBe 1
+    val ref = refs.get(0)
+    ref.getName shouldBe "base.json"
+    ref.getSubject shouldBe "it-json-ref-base"
+    ref.getVersion.intValue shouldBe 1
   }
 
   it should "support round-trip: register then download matches" in withTempDir { dir =>
