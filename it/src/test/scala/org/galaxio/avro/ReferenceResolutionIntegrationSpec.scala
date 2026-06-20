@@ -1,22 +1,15 @@
 package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
-import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient
 import io.confluent.kafka.schemaregistry.client.rest.entities.{SchemaReference => ConfluentSchemaReference}
 import org.apache.avro.Schema
-import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.testcontainers.containers.{GenericContainer => JGenericContainer, Network}
-import org.testcontainers.containers.wait.strategy.Wait
-import org.testcontainers.kafka.ConfluentKafkaContainer
-import org.testcontainers.utility.DockerImageName
 import sbt.util.Logger
 
 import java.nio.file.{Files, Path}
 import java.util.Collections
 import scala.collection.JavaConverters._
-import scala.util.Try
 
 /** End-to-end reference resolution against a real Confluent Schema Registry.
   *
@@ -24,41 +17,9 @@ import scala.util.Try
   * `Integer`, nullable list) and composition of the resolver output with the existing
   * incremental and parallel download stages (FR-009).
   */
-class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
-
-  private var network: Network                           = _
-  private var kafka: ConfluentKafkaContainer             = _
-  private var sr: JGenericContainer[_]                   = _
-  private var registryUrl: String                        = _
-  private var registryClient: CachedSchemaRegistryClient = _
+class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegistryContainerSuite {
 
   private val silentLogger: Logger = Logger.Null
-
-  override def beforeAll(): Unit = {
-    network = Network.newNetwork()
-
-    kafka = new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
-    kafka.withListener("kafka:19092")
-    kafka.withNetwork(network)
-    kafka.start()
-
-    sr = new JGenericContainer(DockerImageName.parse("confluentinc/cp-schema-registry:7.5.0"))
-    sr.withNetwork(network)
-    sr.withExposedPorts(8081)
-    sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
-    sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:19092")
-    sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
-    sr.start()
-
-    registryUrl = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
-    registryClient = new CachedSchemaRegistryClient(registryUrl, 100)
-  }
-
-  override def afterAll(): Unit = {
-    Option(sr).foreach(c => Try(c.stop()))
-    Option(kafka).foreach(c => Try(c.stop()))
-    Option(network).foreach(c => Try(c.close()))
-  }
 
   private def avroSchema(json: String): AvroSchema =
     new AvroSchema(new Schema.Parser().parse(json))
