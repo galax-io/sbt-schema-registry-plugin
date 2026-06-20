@@ -61,7 +61,7 @@ Scala 2.12.21, sbt autoplugin, Confluent `kafka-schema-registry-client` 8.2.1, *
 
 ### Implementation for User Story 1
 
-- [x] T009 [US1] Implement src/main/scala/org/galaxio/avro/SubjectExplorer.scala — `object SubjectExplorer { def listAll(client: SchemaRegistryClient, filter: Option[String]): Either[DownloadError, SubjectListing] }`: `getAllSubjects().asScala.toList.sorted` (stdlib `Try(...).toEither.left.map(SubjectListFailed)`); per subject sequentially fetch `getAllVersions(...).asScala.map(_.intValue).toList` (left ⇒ `SubjectVersionsFetchFailed`) accumulating via `foldLeft` short-circuit; best-effort `getCompatibility` → `Option`; apply `filter.fold(listing)(listing.matching)` (makes T007 pass; depends on T002, T005, T006)
+- [x] T009 [US1] Implement src/main/scala/org/galaxio/avro/SubjectExplorer.scala — `object SubjectExplorer { def listAll(client, filter, parallelism = 1): Either[DownloadError, SubjectListing] }`: `getAllSubjects().asScala.toList.sorted` (stdlib `Try(...).toEither.left.map(SubjectListFailed)`); filter subject **names before fetch** via `SubjectListing.nameMatches`; per kept subject fetch `getAllVersions(...).asScala.map(_.intValue).toList.sorted` (left ⇒ `SubjectVersionsFetchFailed`) + best-effort `getCompatibility` → `Option`; collect via `firstError` (first Left in subject order wins). Bounded-concurrent fetch via `BoundedParallel.traverse` — see T023. (makes T007 pass; depends on T002, T005, T006)
 - [x] T010 [US1] Wire the task in src/main/scala/org/galaxio/avro/SchemaDownloaderPlugin.scala — add `schemaRegistryListSubjects = taskKey[Unit](...)` to `autoImport`; add root→`Compile`-scoped delegation; `Compile / schemaRegistryListSubjects` body mirrors existing tasks: `val logger = streams.value.log`; `withRegistryClient(url, cacheSize, auth, properties) { client => SubjectExplorer.listAll(client, None) match { case Left(e) => sys.error(e.message); case Right(listing) => log count + one line per subject (name padded, `versions: <range>`, `compat: <level|(default)>`) } }`
 - [x] T011 [US1] Create scripted e2e src/sbt-test/schema-registry/list-subjects/ mirroring `download-wildcard`: `build.sbt` (`schemaRegistryUrl := RegistryFixture.url`), `project/` fixture wiring (`docker.sbt`/`plugins.sbt`), and `test` script asserting `> schemaRegistryListSubjects` SUCCEEDS; add a bad-URL negative path asserting `-> schemaRegistryListSubjects` FAILS
 
@@ -116,6 +116,18 @@ Scala 2.12.21, sbt autoplugin, Confluent `kafka-schema-registry-client` 8.2.1, *
 - [x] T020 [P] Document `schemaRegistryListSubjects` and `schemaRegistrySubjectFilter` (usage + sample output) in README.md (and in AGENTS.md task list if one is maintained)
 - [x] T021 Full verify — `sbt scalafmtAll scalafmtSbt` then `sbt scalafmtCheckAll scalafmtSbtCheck compile test`, `sbt it/test`, `sbt scripted` all green (confirms FR-013 backward compat: existing `download-*`/`register-*` scripted tests still pass)
 - [x] T022 [P] Execute [quickstart.md](quickstart.md) scenarios V1–V6 and confirm each acceptance mapping holds
+
+---
+
+## Phase 7: Post-tasks (delivered via review rounds)
+
+**Purpose**: Work that arose after `/speckit-tasks` from code-review feedback and a maintainer request to parallelize listing. Tracked here for traceability; all landed in PR #55 with tests.
+
+- [x] T023 [P] Extract src/main/scala/org/galaxio/avro/BoundedParallel.scala — `traverse[A,B](items, parallelism)(f)`: bounded, order-preserving, pool sized to `min(parallelism, items.size)`, `<= 1` = sequential (no pool), shutdown in `finally`. Wire `SubjectExplorer.fetchInfos` to it and add the `parallelism` param to `listAll`, reusing `schemaRegistryParallelism` (validated `1..32` in the task body like the download task). Add BoundedParallelSpec. (resolves the deferred perf item, research D4)
+- [x] T024 Refactor src/main/scala/org/galaxio/avro/ParallelDownloader.scala to consume `BoundedParallel.traverse` — remove the duplicated thread-pool/`Future`/`Await`/shutdown code; public API unchanged. Existing `ParallelDownloaderSpec` + integration spec confirm no regression. (reuse, not duplication)
+- [x] T025 [P] Consolidate the case-insensitive substring predicate into `SubjectListing.nameMatches` (used by both `SubjectExplorer.filterNames` pre-fetch and `SubjectListing.matching`); make `SubjectExplorer.firstError` a single-pass `foldLeft` preserving first-error order; wrap the bounded fetch in `Try` so the core never throws on an `Await` timeout/interrupt (FR-010). Add the multi-failure first-error-order test.
+
+**Checkpoint**: parallel listing reuses the shared `BoundedParallel` primitive; no duplicated concurrency code; core stays pure and no-throw.
 
 ---
 

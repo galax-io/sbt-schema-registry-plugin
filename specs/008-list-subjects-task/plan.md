@@ -6,7 +6,7 @@
 
 ## Summary
 
-Add a read-only sbt task `schemaRegistryListSubjects` that lists registry subjects — each with its version range and compatibility level — directly from sbt, for discovery and debugging. A pure core `SubjectExplorer.listAll(client, filter)` fetches and shapes the data into immutable value types (`SubjectInfo`, `SubjectListing`) and returns `Either[DownloadError, SubjectListing]`; all formatting and logging live only in the sbt task. An optional `schemaRegistrySubjectFilter` (case-insensitive substring) narrows the listing. The task reuses the existing client construction (`Downloader.buildClient` via `withRegistryClient`) and connection settings — no new connection config, fully additive, backward-compatible.
+Add a read-only sbt task `schemaRegistryListSubjects` that lists registry subjects — each with its version range and compatibility level — directly from sbt, for discovery and debugging. A pure core `SubjectExplorer.listAll(client, filter, parallelism)` fetches and shapes the data into immutable value types (`SubjectInfo`, `SubjectListing`) and returns `Either[DownloadError, SubjectListing]`; all formatting and logging live only in the sbt task. An optional `schemaRegistrySubjectFilter` (case-insensitive substring) narrows the listing — applied to subject names *before* fetching, so excluded subjects are never hit. Per-subject metadata is fetched concurrently via a shared `BoundedParallel.traverse` (also used by `ParallelDownloader`), reusing the existing `schemaRegistryParallelism` budget. The task reuses the existing client construction (`Downloader.buildClient` via `withRegistryClient`) and connection settings — no new connection config, fully additive, backward-compatible.
 
 ## Technical Context
 
@@ -22,7 +22,7 @@ Add a read-only sbt task `schemaRegistryListSubjects` that lists registry subjec
 
 **Project Type**: Single published sbt plugin (one project + `it/` integration subproject)
 
-**Performance Goals**: Interactive discovery; sequential per-subject fetch acceptable (research D4). No latency target — correctness and simplicity prioritized.
+**Performance Goals**: Interactive discovery. Per-subject metadata (versions + compatibility) fetched concurrently on a bounded pool sized by `schemaRegistryParallelism` (research D4); `1` = sequential. No hard latency target.
 
 **Constraints**: `-Xfatal-warnings` (no warnings tolerated); backward compatibility of all published keys/tasks; no new runtime dependency
 
@@ -69,14 +69,17 @@ src/main/scala/org/galaxio/avro/
 │                                  #         settingKey schemaRegistrySubjectFilter (default None),
 │                                  #         default in defaultSettings, root→Compile delegation + task body
 ├── DownloadError.scala            # MODIFY: add case SubjectVersionsFetchFailed(subject, error)
+├── ParallelDownloader.scala       # MODIFY: route through shared BoundedParallel.traverse (no dup pool code)
+├── BoundedParallel.scala          # NEW: bounded, order-preserving traverse; shared by ParallelDownloader + SubjectExplorer
 ├── SubjectInfo.scala              # NEW: value type (name, versions, compatibility) + versionRange/latestVersion
-├── SubjectListing.scala           # NEW: value type wrapping List[SubjectInfo] + matching(filter)
-└── SubjectExplorer.scala          # NEW: pure core listAll(client, filter): Either[DownloadError, SubjectListing]
+├── SubjectListing.scala           # NEW: value type wrapping List[SubjectInfo] + matching(filter) + nameMatches predicate
+└── SubjectExplorer.scala          # NEW: pure core listAll(client, filter, parallelism): Either[DownloadError, SubjectListing]
 
 src/test/scala/org/galaxio/avro/
-├── SubjectExplorerSpec.scala      # NEW: mock client — extraction, sort, filter, fail-fast, best-effort compat
+├── SubjectExplorerSpec.scala      # NEW: mock client — extraction, sort, filter, fail-fast (incl. parallel + first-error order), best-effort compat
 ├── SubjectInfoSpec.scala          # NEW: versionRange / latestVersion edge cases
-└── SubjectListingSpec.scala       # NEW: matching() case-insensitive substring, empty filter
+├── SubjectListingSpec.scala       # NEW: matching() case-insensitive substring, empty filter
+└── BoundedParallelSpec.scala      # NEW: order preserved, sequential vs parallel, concurrency proof
 
 it/src/test/scala/org/galaxio/avro/SubjectExplorerIntegrationSpec.scala   # NEW: integration spec — real registry list + filter (Testcontainers; mirrors SubjectResolverIntegrationSpec)
 
@@ -90,7 +93,7 @@ src/sbt-test/schema-registry/list-subjects/   # NEW scripted e2e (mirror downloa
 
 ## Phase 0 — Research
 
-Complete. See [research.md](research.md). Decisions: D1 reuse `DownloadError` (+`SubjectVersionsFetchFailed`, not `RegistryError.FetchFailed`); D2 no cats → stdlib; D3 best-effort compatibility; D4 sequential v1 (parallel deferred); D5 new `schemaRegistrySubjectFilter` case-insensitive substring; D6 client methods `getAllSubjects`/`getAllVersions`/`getCompatibility`; D7 new value types (not reuse `RegistrySubject`); D8 `taskKey[Unit]` mirroring existing tasks; D9 three-tier testing (scripted asserts success/failure, content via `it/`). No `NEEDS CLARIFICATION` remain.
+Complete. See [research.md](research.md). Decisions: D1 reuse `DownloadError` (+`SubjectVersionsFetchFailed`, not `RegistryError.FetchFailed`); D2 no cats → stdlib; D3 best-effort compatibility; D4 parallel per-subject fetch reusing `schemaRegistryParallelism` (via shared `BoundedParallel.traverse`); D5 new `schemaRegistrySubjectFilter` case-insensitive substring; D6 client methods `getAllSubjects`/`getAllVersions`/`getCompatibility`; D7 new value types (not reuse `RegistrySubject`); D8 `taskKey[Unit]` mirroring existing tasks; D9 three-tier testing (scripted asserts success/failure, content via `it/`). No `NEEDS CLARIFICATION` remain.
 
 ## Phase 1 — Design & Contracts
 
