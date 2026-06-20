@@ -1,0 +1,10 @@
+# List subjects against the fixture registry — task must succeed and see both subjects.
+> schemaRegistryListSubjects
+
+# Filtered listing (case-insensitive substring on "order") — must also succeed.
+> set schemaRegistrySubjectFilter := Some("order")
+> schemaRegistryListSubjects
+
+# Unreachable registry — task must fail with a clear error.
+> set schemaRegistryUrl := "http://127.0.0.1:1"
+-> schemaRegistryListSubjects

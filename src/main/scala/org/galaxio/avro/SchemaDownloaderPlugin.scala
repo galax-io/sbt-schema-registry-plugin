@@ -32,6 +32,9 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       settingKey[Int]("Maximum retry attempts for transient download failures (0 = no retry)")
     val schemaRegistryResolveReferences =
       settingKey[Boolean]("Auto-download schemas referenced by downloaded schemas (transitive)")
+    val schemaRegistryListSubjects      = taskKey[Unit]("List subjects in the schema registry")
+    val schemaRegistrySubjectFilter     =
+      settingKey[Option[String]]("Optional case-insensitive substring filter for schemaRegistryListSubjects")
 
     lazy val defaultSettings: Seq[Setting[?]] = Seq(
       schemaRegistryUrl               := "http://localhost:8081",
@@ -46,6 +49,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       schemaRegistryParallelism       := 4,
       schemaRegistryRetries           := 3,
       schemaRegistryResolveReferences := true,
+      schemaRegistrySubjectFilter     := None,
     )
   }
 
@@ -258,6 +262,35 @@ object SchemaDownloaderPlugin extends AutoPlugin {
 
           if (!report.isSuccess)
             sys.error(s"${report.incompatible.size} incompatible, ${report.failed.size} failed")
+        }
+      }
+    },
+    schemaRegistryListSubjects                := (Compile / schemaRegistryListSubjects).value,
+    Compile / schemaRegistryListSubjects      := {
+      val logger      = streams.value.log
+      val filter      = schemaRegistrySubjectFilter.value
+      val parallelism = schemaRegistryParallelism.value
+
+      if (parallelism < 1 || parallelism > ParallelDownloader.MaxParallelism)
+        sys.error(DownloadError.InvalidParallelism(parallelism).message)
+
+      withRegistryClient(
+        schemaRegistryUrl.value,
+        schemaRegistryCacheSize.value,
+        schemaRegistryAuth.value,
+        schemaRegistryProperties.value,
+      ) { client =>
+        SubjectExplorer.listAll(client, filter, parallelism) match {
+          case Left(err)      =>
+            err.cause.foreach(logger.trace(_))
+            sys.error(err.message)
+          case Right(listing) =>
+            logger.info(s"Found ${listing.size} subject(s):")
+            val width = listing.subjects.map(_.name.length).foldLeft(0)(_ max _)
+            listing.subjects.foreach { info =>
+              val compat = info.compatibility.getOrElse("(default)")
+              logger.info(s"  ${info.name.padTo(width, ' ')}  (versions: ${info.versionRange}, compat: $compat)")
+            }
         }
       }
     },

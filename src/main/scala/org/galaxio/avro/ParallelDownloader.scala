@@ -3,10 +3,7 @@ package org.galaxio.avro
 import sbt.util.Logger
 
 import java.nio.file.Path
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
-import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
 
 final class ParallelDownloader private (
     downloader: Downloader,
@@ -17,43 +14,14 @@ final class ParallelDownloader private (
 
   def downloadAll(
       subjects: List[RegistrySubject],
-  ): List[(RegistrySubject, Either[DownloadError, Path])] =
-    if (subjects.isEmpty) List.empty
-    else if (parallelism == 1) downloadSequential(subjects)
-    else downloadParallel(subjects)
-
-  private def downloadSequential(
-      subjects: List[RegistrySubject],
   ): List[(RegistrySubject, Either[DownloadError, Path])] = {
     val total     = subjects.size
     val completed = new AtomicInteger(0)
-    subjects.map { subject =>
+    BoundedParallel.traverse(subjects, parallelism) { subject =>
       val result = retryPolicy.execute(downloader.schemaSubjectToFile(subject), subject.name, logger)
       val n      = completed.incrementAndGet()
       logProgress(subject.name, n, total, result)
       subject -> result
-    }
-  }
-
-  private def downloadParallel(
-      subjects: List[RegistrySubject],
-  ): List[(RegistrySubject, Either[DownloadError, Path])] = {
-    val total     = subjects.size
-    val completed = new AtomicInteger(0)
-    val pool      = Executors.newFixedThreadPool(parallelism)
-    try {
-      implicit val ec: ExecutionContext = ExecutionContext.fromExecutor(pool)
-      val futures                       = subjects.map { subject =>
-        Future {
-          val result = retryPolicy.execute(downloader.schemaSubjectToFile(subject), subject.name, logger)
-          val n      = completed.incrementAndGet()
-          logProgress(subject.name, n, total, result)
-          subject -> result
-        }
-      }
-      Await.result(Future.sequence(futures), 30.minutes)
-    } finally {
-      pool.shutdownNow()
     }
   }
 
