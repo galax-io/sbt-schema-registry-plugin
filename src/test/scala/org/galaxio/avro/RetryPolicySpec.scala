@@ -111,4 +111,35 @@ class RetryPolicySpec extends AnyFlatSpec with Matchers with MockitoSugar {
     result shouldBe Left(fetchFailed)
     calls shouldBe 1
   }
+
+  "RetryPolicy.delayMs" should "grow exponentially with the backoff multiplier" in {
+    val policy = RetryPolicy(initialDelayMs = 100, backoffMultiplier = 2.0)
+    policy.delayMs(1) shouldBe 100L // 100 * 2^0
+    policy.delayMs(2) shouldBe 200L // 100 * 2^1
+    policy.delayMs(3) shouldBe 400L // 100 * 2^2
+    policy.delayMs(4) shouldBe 800L // 100 * 2^3
+  }
+
+  it should "stay constant when the multiplier is 1.0" in {
+    val policy = RetryPolicy(initialDelayMs = 50, backoffMultiplier = 1.0)
+    policy.delayMs(1) shouldBe 50L
+    policy.delayMs(2) shouldBe 50L
+    policy.delayMs(3) shouldBe 50L
+  }
+
+  it should "support fractional multipliers, truncating to whole millis" in {
+    val policy = RetryPolicy(initialDelayMs = 100, backoffMultiplier = 1.5)
+    policy.delayMs(1) shouldBe 100L // 100 * 1.5^0
+    policy.delayMs(2) shouldBe 150L // 100 * 1.5^1
+    policy.delayMs(3) shouldBe 225L // 100 * 1.5^2
+  }
+
+  it should "actually back off between retries (observable elapsed time)" in {
+    // initial=20, mult=2 → delays 20+40+80 = 140ms; exponential, not linear (which would be 60ms).
+    val policy    = RetryPolicy(maxRetries = 3, initialDelayMs = 20, backoffMultiplier = 2.0)
+    val started   = System.nanoTime()
+    policy.execute(Left(fetchFailed), "backoff-subject", testLogger)
+    val elapsedMs = (System.nanoTime() - started) / 1000000L
+    elapsedMs should be >= 140L
+  }
 }

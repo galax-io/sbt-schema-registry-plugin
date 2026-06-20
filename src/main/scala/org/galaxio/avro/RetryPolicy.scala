@@ -17,15 +17,18 @@ final case class RetryPolicy(
     var attempt    = 0
     while (attempt < maxRetries && isRetryable(lastResult)) {
       attempt += 1
-      val delayMs = (initialDelayMs * math.pow(backoffMultiplier, attempt - 1)).toLong
       lastResult.left.foreach { err =>
         logger.warn(s"Retry $attempt/$maxRetries for $subjectName: ${err.message}")
       }
-      Thread.sleep(delayMs)
+      Thread.sleep(delayMs(attempt))
       lastResult = op
     }
     lastResult
   }
+
+  /** Exponential backoff delay before the n-th retry (1-based): `initialDelayMs * backoffMultiplier^(attempt-1)`. */
+  private[avro] def delayMs(attempt: Int): Long =
+    (initialDelayMs * math.pow(backoffMultiplier, attempt - 1)).toLong
 
   private def isRetryable[A](result: Either[DownloadError, A]): Boolean =
     result match {
