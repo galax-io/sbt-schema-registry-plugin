@@ -39,10 +39,24 @@ object DownloadOrchestrator {
       cfg: DownloadConfig,
       logger: Logger,
   ): Either[DownloadError, DownloadSummary] =
-    for {
-      resolvedSubjects <- resolveSubjects(client, cfg, logger)
-      expandedSubjects <- expandReferences(client, cfg, resolvedSubjects, logger)
-    } yield download(client, cfg, expandedSubjects, logger)
+    validate(cfg) match {
+      case Some(err) => Left(err)
+      case None      =>
+        for {
+          resolvedSubjects <- resolveSubjects(client, cfg, logger)
+          expandedSubjects <- expandReferences(client, cfg, resolvedSubjects, logger)
+        } yield download(client, cfg, expandedSubjects, logger)
+    }
+
+  /** First range violation in the config, if any — shared with the plugin so it can fail fast before opening a registry client.
+    * Keeps the orchestrator self-contained for direct callers.
+    */
+  def validate(cfg: DownloadConfig): Option[DownloadError] =
+    if (cfg.parallelism < 1 || cfg.parallelism > ParallelDownloader.MaxParallelism)
+      Some(DownloadError.InvalidParallelism(cfg.parallelism))
+    else if (cfg.retries < 0 || cfg.retries > ParallelDownloader.MaxRetries)
+      Some(DownloadError.InvalidRetryConfig(cfg.retries))
+    else None
 
   private def resolveSubjects(
       client: SchemaRegistryClient,
