@@ -105,6 +105,18 @@ class DownloadOrchestratorSpec extends AnyFlatSpec with Matchers with MockitoSug
     readManifest(cfg.manifestFile).versions shouldBe Map("dup" -> 1)
   }
 
+  it should "return Left for an out-of-range parallelism without touching the registry" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val cfg    = config(dir, Seq(RegistrySubject("x", 1))).copy(parallelism = 99)
+    DownloadOrchestrator.run(client, cfg, testLogger).left.get shouldBe a[DownloadError.InvalidParallelism]
+  }
+
+  it should "return Left for an out-of-range retry count" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    val cfg    = config(dir, Seq(RegistrySubject("x", 1))).copy(retries = -1)
+    DownloadOrchestrator.run(client, cfg, testLogger).left.get shouldBe a[DownloadError.InvalidRetryConfig]
+  }
+
   it should "fail fast with Left when a subject pattern is an invalid regex" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     val cfg    = config(dir, Seq.empty).copy(patterns = Seq("["))

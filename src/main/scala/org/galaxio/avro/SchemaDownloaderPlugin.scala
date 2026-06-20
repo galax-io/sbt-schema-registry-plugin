@@ -90,10 +90,8 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       logger.debug(s"schemaRegistryRetries: $retries")
       logger.debug(s"schemaRegistryResolveReferences: ${cfg.resolveReferences}")
 
-      if (parallelism < 1 || parallelism > ParallelDownloader.MaxParallelism)
-        sys.error(DownloadError.InvalidParallelism(parallelism).message)
-      if (retries < 0 || retries > ParallelDownloader.MaxRetries)
-        sys.error(DownloadError.InvalidRetryConfig(retries).message)
+      // Fail fast on bad ranges before opening a registry client (shared with the orchestrator).
+      DownloadOrchestrator.validate(cfg).foreach(err => sys.error(err.message))
 
       if (subjects.isEmpty && patterns.isEmpty) {
         logger.warn(
