@@ -17,11 +17,7 @@ class SubjectInfoSpec extends AnyFlatSpec with Matchers {
     SubjectInfo("s", List(1, 2, 3, 4, 5), None).versionRange shouldBe "1..5"
   }
 
-  "SubjectInfo.latestVersion" should "be the last version" in {
-    SubjectInfo("s", List(1, 2, 5), None).latestVersion shouldBe Some(5)
-  }
-
-  it should "be None when there are no versions" in {
-    SubjectInfo("s", Nil, None).latestVersion shouldBe None
+  it should "be 'first..last' for exactly two versions" in {
+    SubjectInfo("s", List(1, 2), None).versionRange shouldBe "1..2"
   }
 }

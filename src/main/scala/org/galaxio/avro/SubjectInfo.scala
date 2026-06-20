@@ -5,8 +5,6 @@ final case class SubjectInfo(
     versions: List[Int],
     compatibility: Option[String],
 ) {
-  def latestVersion: Option[Int] = versions.lastOption
-
   def versionRange: String = versions match {
     case Nil      => "none"
     case v :: Nil => v.toString
