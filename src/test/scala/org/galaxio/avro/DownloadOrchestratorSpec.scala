@@ -90,6 +90,21 @@ class DownloadOrchestratorSpec extends AnyFlatSpec with Matchers with MockitoSug
     readManifest(cfg.manifestFile).versions shouldBe Map("svc" -> 1)
   }
 
+  it should "record the version actually downloaded for divergent pinned versions of one subject" in withTempDir { dir =>
+    val client = mock[SchemaRegistryClient]
+    // Same subject name, two pinned versions: v1 succeeds, v2 fails. The manifest must record v1
+    // (the one that landed), not v2 — a name-keyed join would mis-record the last decision's version.
+    when(client.getByVersion("dup", 1, false)).thenReturn(schemaEntity("dup", 1, """{"type":"string"}"""))
+    when(client.getByVersion("dup", 2, false)).thenThrow(new IOException("v2 gone"))
+
+    val cfg     = config(dir, Seq(RegistrySubject("dup", 1), RegistrySubject("dup", 2)))
+    val summary = DownloadOrchestrator.run(client, cfg, testLogger)
+
+    summary.map(_.succeeded) shouldBe Right(1)
+    summary.map(_.failed.map(_._1)) shouldBe Right(List(RegistrySubject.Pinned("dup", 2)))
+    readManifest(cfg.manifestFile).versions shouldBe Map("dup" -> 1)
+  }
+
   it should "fail fast with Left when a subject pattern is an invalid regex" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     val cfg    = config(dir, Seq.empty).copy(patterns = Seq("["))

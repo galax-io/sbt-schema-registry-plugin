@@ -113,11 +113,14 @@ object DownloadOrchestrator {
 
     val downloadResults = parallelDownloader.downloadAll(toDownload.map(_.subject))
 
-    val decisionsMap = toDownload.map(d => d.subject.name -> d).toMap
-    val failures     = downloadResults.collect { case (s, Left(e)) => s -> e }
+    // Key by the full subject (name + version), not just name: reference resolution can yield
+    // divergent pinned versions of the same subject, and a name-only map collapses them — wiring a
+    // succeeded download to the wrong decision's resolved version in the manifest.
+    val decisionsBySubject = toDownload.map(d => d.subject -> d).toMap
+    val failures           = downloadResults.collect { case (s, Left(e)) => s -> e }
 
     val downloaded = downloadResults.collect { case (s, Right(_)) =>
-      decisionsMap.get(s.name).flatMap(_.resolvedVersion).map(s.name -> _)
+      decisionsBySubject.get(s).flatMap(_.resolvedVersion).map(s.name -> _)
     }.flatten
 
     if (cfg.incremental && downloaded.nonEmpty) {
