@@ -3,6 +3,7 @@ package org.galaxio.avro
 import io.confluent.kafka.schemaregistry.client.{CachedSchemaRegistryClient, SchemaRegistryClient}
 import sbt.util.Logger
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import java.util.{Collections, HashMap => JHashMap}
 import scala.collection.JavaConverters._
@@ -59,7 +60,7 @@ final class Downloader private[avro] (
     Try {
       if (Files.notExists(schemaOutputDir)) Files.createDirectories(schemaOutputDir)
       val fileName = s"$subjectName-$version.${schemaType.extension}"
-      val path     = Files.write(schemaOutputDir.resolve(fileName), body.getBytes())
+      val path     = Files.write(schemaOutputDir.resolve(fileName), body.getBytes(StandardCharsets.UTF_8))
       logger.info(s"Saved schema $subjectName to $path")
       path
     }.toEither.left.map(DownloadError.WriteError(schemaOutputDir, _))
