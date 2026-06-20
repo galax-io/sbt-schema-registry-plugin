@@ -101,6 +101,7 @@ The build will fail if any schema download fails.
 | `schemaRegistryParallelism`       | Number of concurrent schema downloads (1 = sequential)           | `4`                     |
 | `schemaRegistryRetries`           | Maximum retry attempts for transient download failures (0 = none) | `3`                    |
 | `schemaRegistryResolveReferences` | Auto-download referenced schemas transitively                    | `true`                  |
+| `schemaRegistrySubjectFilter`     | Optional case-insensitive substring filter for `schemaRegistryListSubjects` | `None`        |
 
 ## Schema References
 
@@ -169,6 +170,37 @@ Schemas are fetched concurrently with a bounded thread pool. Tune the degree of 
 schemaRegistryParallelism := 8   // 1..32
 schemaRegistryRetries     := 3   // 0..10, 0 = no retry
 ```
+
+## Listing Subjects
+
+Discover what exists in the registry without reaching for `curl` or a separate UI. The
+`schemaRegistryListSubjects` task fetches every subject — sorted, with its version range and
+compatibility level — and prints it to the sbt log. It reuses the same connection settings
+(`schemaRegistryUrl`, `schemaRegistryAuth`, `schemaRegistryProperties`) as the other tasks.
+
+```bash
+sbt schemaRegistryListSubjects
+# [info] Found 42 subject(s):
+# [info]   user-value                                (versions: 1..5, compat: BACKWARD)
+# [info]   order-value                               (versions: 1..3, compat: (default))
+```
+
+A subject with no subject-level compatibility override is shown as `(default)` (the global default
+applies). Compatibility is advisory and best-effort: any failed compatibility lookup (including a
+permissions error) is also shown as `(default)` and never fails the task — only the subject list and
+per-subject versions are hard requirements. Narrow the listing with `schemaRegistrySubjectFilter` — a case-insensitive substring match
+on the subject name (an unset or empty filter lists everything):
+
+```bash
+sbt 'set schemaRegistrySubjectFilter := Some("order")' schemaRegistryListSubjects
+# [info] Found 1 subject(s):
+# [info]   order-value                               (versions: 1..3, compat: FULL)
+```
+
+Per-subject metadata (versions + compatibility) is fetched concurrently using the same
+`schemaRegistryParallelism` budget as downloads (`1` = sequential, up to `32`), so large registries
+list quickly. The task is read-only and never registers, deletes, or mutates anything. It fails with
+a clear message if the registry is unreachable, or if a listed subject's versions cannot be fetched.
 
 ## Schema Registration (Push)
 

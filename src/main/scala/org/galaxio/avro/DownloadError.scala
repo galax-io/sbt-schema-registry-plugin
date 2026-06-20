@@ -37,6 +37,11 @@ object DownloadError {
     override val cause: Option[Throwable] = Some(error)
   }
 
+  final case class SubjectVersionsFetchFailed(subject: String, error: Throwable) extends DownloadError {
+    val message: String                   = s"Failed to fetch versions for $subject: ${error.getMessage}"
+    override val cause: Option[Throwable] = Some(error)
+  }
+
   final case class ManifestParseError(error: Throwable) extends DownloadError {
     val message: String                   = s"Failed to parse version manifest: ${error.getMessage}"
     override val cause: Option[Throwable] = Some(error)
