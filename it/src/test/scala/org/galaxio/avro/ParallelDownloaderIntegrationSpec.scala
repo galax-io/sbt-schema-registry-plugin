@@ -51,6 +51,7 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with B
   }
 
   override def afterAll(): Unit = {
+    Option(registryClient).foreach(c => Try(c.close()))
     Option(sr).foreach(c => Try(c.stop()))
     Option(kafka).foreach(c => Try(c.stop()))
     Option(network).foreach(c => Try(c.close()))
@@ -62,19 +63,25 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with B
 
   private val noRetry = RetryPolicy(maxRetries = 0, initialDelayMs = 1, backoffMultiplier = 1.0)
 
-  "ParallelDownloader integration" should "download 5 subjects concurrently" in {
-    val outDir     = tmpDir
-    val downloader = Downloader.withExternalClient(registryClient, outDir, silentLogger)
-    val subjects   = (1 to 5).map(i => RegistrySubject.Latest(s"test-subject-$i")).toList
+  "ParallelDownloader integration" should "download subjects concurrently (proven, not just counted)" in {
+    val outDir      = tmpDir
+    val parallelism = 4
+    // Gate getLatestSchemaMetadata on a barrier sized to parallelism: a sequential run can never
+    // get all `parallelism` calls in flight at once, so maxConcurrent would stay below it.
+    val probe       = ConcurrencyProbe.gating(registryClient, parallelism, Set("getLatestSchemaMetadata"))
+    val downloader  = Downloader.withExternalClient(probe.client, outDir, silentLogger)
+    val subjects    = (1 to parallelism).map(i => RegistrySubject.Latest(s"test-subject-$i")).toList
 
-    val pd      = ParallelDownloader(downloader, parallelism = 4, noRetry, silentLogger)
+    val pd      = ParallelDownloader(downloader, parallelism = parallelism, noRetry, silentLogger)
     val results = pd.downloadAll(subjects)
 
-    results should have size 5
-    results.count(_._2.isRight) shouldBe 5
+    results should have size parallelism.toLong
+    results.count(_._2.isRight) shouldBe parallelism
+    probe.maxConcurrent.get shouldBe parallelism // all tasks were in flight simultaneously
 
-    val files = outDir.toFile.listFiles()
-    files should have length 5
+    results.map(_._1.name).toSet shouldBe (1 to parallelism).map(i => s"test-subject-$i").toSet
+    outDir.toFile.listFiles().map(_.getName).toSet shouldBe
+      (1 to parallelism).map(i => s"test-subject-$i-1.avsc").toSet
   }
 
   it should "handle partial failure with mix of valid and invalid subjects" in {
