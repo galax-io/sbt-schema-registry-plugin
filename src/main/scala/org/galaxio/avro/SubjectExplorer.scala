@@ -39,20 +39,7 @@ object SubjectExplorer {
   ): Either[DownloadError, List[SubjectInfo]] =
     Try(BoundedParallel.traverse(names, parallelism)(fetchInfo(client, _))).toEither.left
       .map(DownloadError.SubjectListFailed)
-      .flatMap(firstError)
-
-  // Single pass: accumulate in order, short-circuit to the FIRST Left (subject order).
-  private def firstError(
-      results: List[Either[DownloadError, SubjectInfo]],
-  ): Either[DownloadError, List[SubjectInfo]] =
-    results
-      .foldLeft(Right(Nil): Either[DownloadError, List[SubjectInfo]]) { (acc, e) =>
-        for {
-          xs <- acc
-          x  <- e
-        } yield x :: xs
-      }
-      .map(_.reverse)
+      .flatMap(EitherOps.sequence)
 
   private def fetchInfo(
       client: SchemaRegistryClient,
