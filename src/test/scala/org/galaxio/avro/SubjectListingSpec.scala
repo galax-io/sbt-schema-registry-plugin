@@ -10,20 +10,20 @@ class SubjectListingSpec extends AnyFlatSpec with Matchers {
   private val listing =
     SubjectListing(List(info("user-value"), info("order-value"), info("payment-value")))
 
-  "SubjectListing.matching" should "keep case-insensitive substring matches" in {
-    listing.matching("ORDER").subjects.map(_.name) shouldBe List("order-value")
+  "SubjectListing.nameMatches" should "match case-insensitively" in {
+    SubjectListing.nameMatches("order-value", "ORDER") shouldBe true
   }
 
   it should "match a substring appearing anywhere in the name" in {
-    listing.matching("value").subjects should have size 3
+    SubjectListing.nameMatches("payment-value", "value") shouldBe true
   }
 
-  it should "return all subjects for an empty filter" in {
-    listing.matching("").subjects should have size 3
+  it should "match everything for an empty filter" in {
+    SubjectListing.nameMatches("anything", "") shouldBe true
   }
 
-  it should "return empty when nothing matches" in {
-    listing.matching("nope").subjects shouldBe empty
+  it should "not match when the substring is absent" in {
+    SubjectListing.nameMatches("user-value", "nope") shouldBe false
   }
 
   "SubjectListing.size" should "report the number of subjects" in {
