@@ -107,17 +107,9 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with B
       Set("test-subject-1-1.avsc", "test-subject-3-1.avsc")
   }
 
-  it should "download sequentially with parallelism 1" in {
-    val outDir     = tmpDir
-    val downloader = Downloader.withExternalClient(registryClient, outDir, silentLogger)
-    val subjects   = (1 to 3).map(i => RegistrySubject.Latest(s"test-subject-$i")).toList
-
-    val pd      = ParallelDownloader(downloader, parallelism = 1, noRetry, silentLogger)
-    val results = pd.downloadAll(subjects)
-
-    results should have size 3
-    results.count(_._2.isRight) shouldBe 3
-  }
+  // Sequential (parallelism = 1) execution + order preservation is owned by ParallelDownloaderSpec
+  // ("execute sequentially when parallelism is 1 preserving order"), which asserts the actual order
+  // this IT never checked. Removed here as a registry-free duplicate.
 
   it should "compose correctly with incremental resolver" in {
     val outDir     = tmpDir

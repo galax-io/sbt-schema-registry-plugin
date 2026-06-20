@@ -115,27 +115,9 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
       newManifest.versionOf(userSubject) shouldBe Some(1)
   }
 
-  it should "skip all subjects when versions unchanged" in {
-    val orderSubject = "incr.test.Order"
-    val userSubject  = "incr.test.User"
-
-    val manifest = VersionManifest(Map(orderSubject -> 1, userSubject -> 1))
-    val subjects = List(
-      RegistrySubject.Latest(orderSubject),
-      RegistrySubject.Latest(userSubject),
-    )
-
-    val decisions = IncrementalResolver.plan(
-      manifest,
-      subjects,
-      s =>
-        Try(registryClient.getLatestSchemaMetadata(s).getVersion: Int).toEither.left
-          .map(DownloadError.SchemaFetchFailed(s, _)),
-    )
-
-    decisions.collect { case s: DownloadDecision.Skip     => s } should have size 2
-    decisions.collect { case d: DownloadDecision.Download => d } shouldBe empty
-  }
+  // "skip all when unchanged" is pure plan logic (owned by IncrementalResolverSpec "skip Latest
+  // subject when manifest version matches registry") and was also order-coupled to the first
+  // scenario's registrations. The live version-match path is exercised by the cache-bypass test below.
 
   it should "download only changed subject after new version registered" in {
     val orderSubject = "incr.test.Order"
@@ -171,30 +153,7 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
     } finally freshClient.close()
   }
 
-  it should "download all subjects when manifest is empty (simulating sbt clean)" in {
-    val orderSubject = "incr.test.Order"
-    val userSubject  = "incr.test.User"
-
-    val subjects = List(
-      RegistrySubject.Latest(orderSubject),
-      RegistrySubject.Latest(userSubject),
-    )
-
-    val decisions = IncrementalResolver.plan(
-      VersionManifest.empty,
-      subjects,
-      s =>
-        Try(registryClient.getLatestSchemaMetadata(s).getVersion: Int).toEither.left
-          .map(DownloadError.SchemaFetchFailed(s, _)),
-    )
-
-    decisions.collect { case d: DownloadDecision.Download => d } should have size 2
-  }
-
-  "VersionManifest" should "survive JSON round-trip with real data" in {
-    val manifest = VersionManifest(Map("incr.test.Order" -> 2, "incr.test.User" -> 1))
-    val json     = manifest.toJson
-    val parsed   = VersionManifest.fromJson(json)
-    parsed shouldBe Right(manifest)
-  }
+  // "download all when manifest empty" duplicates the first-run scenario above and
+  // IncrementalResolverSpec ("download all subjects when manifest is empty"); the JSON round-trip is
+  // pure and owned by VersionManifestSpec. Both removed as registry-free duplicates.
 }

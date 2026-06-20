@@ -95,20 +95,9 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
     result shouldBe CompatibilityResult.Compatible("compat-new-subject")
   }
 
-  it should "return Failed for invalid schema content" in {
-    val file   = tempSchemaFile("not valid json at all")
-    val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-invalid", file))
-    result shouldBe a[CompatibilityResult.Failed]
-  }
-
-  it should "return Failed for missing file" in {
-    val result = CompatibilityChecker.checkOne(
-      registryClient,
-      RegistryRegistration("compat-missing", new File("/nonexistent.avsc")),
-    )
-    result shouldBe a[CompatibilityResult.Failed]
-    result.asInstanceOf[CompatibilityResult.Failed].cause shouldBe a[RegistryError.FileNotFound]
-  }
+  // Pure parse-failure / missing-file paths fail before any registry call — owned by
+  // CompatibilityCheckerSpec ("return Failed when schema content is invalid" / "...when file does
+  // not exist"). Removed from the IT layer to avoid duplicating registry-free logic.
 
   it should "return Compatible for backward-compatible Protobuf change" in {
     val v1 =

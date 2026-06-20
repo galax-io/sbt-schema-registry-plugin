@@ -59,8 +59,6 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Befo
   private def registerTestSubjects(): Unit = {
     registryClient.register("com.myorg.User-value", avroSchema("User"))
     registryClient.register("com.myorg.Order-value", avroSchema("Order"))
-    // Second registration creates version 2 so pinned-version test can assert version 1 vs latest
-    registryClient.register("com.myorg.User-value", avroSchema("User"))
     registryClient.register("internal.Audit-value", avroSchema("Audit"))
   }
 
@@ -75,23 +73,8 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Befo
     names should contain theSameElementsAs List("com.myorg.User-value", "com.myorg.Order-value")
   }
 
-  it should "return empty plan when pattern matches zero subjects" in {
-    val specs  = List(SubjectSpec.Pattern("nonexistent\\..*"))
-    val result = SubjectResolver.resolve(registryClient, specs)
-
-    result shouldBe Right(DownloadPlan(Nil))
-  }
-
-  it should "resolve pattern-matched subjects as Latest" in {
-    val specs  = List(SubjectSpec.Pattern("com\\.myorg\\.User-value"))
-    val result = SubjectResolver.resolve(registryClient, specs)
-
-    result shouldBe a[Right[_, _]]
-    result.right.get.subjects.foreach {
-      case _: RegistrySubject.Latest => succeed
-      case other                     => fail(s"Expected Latest, got $other")
-    }
-  }
+  // Empty-plan and pattern-resolves-to-Latest are pure regex/mapping logic owned by
+  // SubjectResolverSpec; removed here as registry-free duplicates.
 
   // --- US2: Exact + pattern composition ---
 
@@ -110,12 +93,8 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Befo
     plan.subjects.map(_.name) should contain("com.myorg.Order-value")
   }
 
-  it should "work with only exact specs (no pattern resolution)" in {
-    val specs  = List(SubjectSpec.Exact(RegistrySubject.Latest("com.myorg.User-value")))
-    val result = SubjectResolver.resolve(registryClient, specs)
-
-    result shouldBe Right(DownloadPlan(List(RegistrySubject.Latest("com.myorg.User-value"))))
-  }
+  // Exact-only resolution touches the registry zero times — owned by SubjectResolverSpec
+  // ("return exact subjects as-is" / "not call getAllSubjects when only exact specs provided").
 
   // --- US3: Multiple patterns ---
 
@@ -133,15 +112,6 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Befo
     )
   }
 
-  it should "deduplicate across overlapping patterns" in {
-    val specs = List(
-      SubjectSpec.Pattern("com\\.myorg\\..*"),
-      SubjectSpec.Pattern(".*User.*"),
-    )
-    val result = SubjectResolver.resolve(registryClient, specs)
-
-    result shouldBe a[Right[_, _]]
-    val names = result.right.get.subjects.map(_.name)
-    names.count(_ == "com.myorg.User-value") shouldBe 1
-  }
+  // Overlapping-pattern deduplication is pure set logic owned by SubjectResolverSpec
+  // ("deduplicate across multiple patterns matching the same subject").
 }

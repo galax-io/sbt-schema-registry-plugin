@@ -76,19 +76,17 @@ class SubjectExplorerIntegrationSpec extends AnyFlatSpec with Matchers with Befo
     registryClient.updateCompatibility(orderSubject, "BACKWARD")
   }
 
-  "SubjectExplorer.listAll (integration)" should "list all subjects sorted with correct version ranges" in {
+  "SubjectExplorer.listAll (integration)" should "list all subjects sorted with their real versions" in {
     val result = SubjectExplorer.listAll(registryClient, None)
 
     result shouldBe a[Right[_, _]]
     val listing = result.right.get
     listing.subjects.map(_.name) shouldBe List(orderSubject, userSubject)
 
-    val order = listing.subjects.find(_.name == orderSubject).get
-    order.versions shouldBe List(1, 2)
-    order.versionRange shouldBe "1..2"
-
-    val user = listing.subjects.find(_.name == userSubject).get
-    user.versionRange shouldBe "1"
+    // Real getAllVersions over the two registered Order versions and the single User version.
+    // versionRange string formatting is pure and owned by SubjectInfoSpec.
+    listing.subjects.find(_.name == orderSubject).get.versions shouldBe List(1, 2)
+    listing.subjects.find(_.name == userSubject).get.versions  shouldBe List(1)
   }
 
   it should "surface a subject-level compatibility override and report None for subjects without one" in {
@@ -97,15 +95,7 @@ class SubjectExplorerIntegrationSpec extends AnyFlatSpec with Matchers with Befo
     listing.subjects.find(_.name == userSubject).get.compatibility shouldBe None
   }
 
-  it should "produce the same result with parallelism > 1 as sequential" in {
-    val seq = SubjectExplorer.listAll(registryClient, None).right.get
-    val par = SubjectExplorer.listAll(registryClient, None, parallelism = 4).right.get
-    par.subjects shouldBe seq.subjects
-  }
-
-  it should "narrow the listing with a case-insensitive filter" in {
-    val listing = SubjectExplorer.listAll(registryClient, Some("order")).right.get
-    listing.subjects.map(_.name) shouldBe List(orderSubject)
-    listing.size shouldBe 1
-  }
+  // Parallel-equals-sequential and case-insensitive filtering are pure (BoundedParallel preserves
+  // order; SubjectListing.nameMatches owns the predicate) and are covered by SubjectExplorerSpec.
+  // Removed here as registry-free duplicates.
 }

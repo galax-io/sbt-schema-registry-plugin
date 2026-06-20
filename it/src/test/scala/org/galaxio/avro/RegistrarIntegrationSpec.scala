@@ -96,29 +96,9 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAndA
     first.head.toOption.get.schemaId shouldBe second.head.toOption.get.schemaId
   }
 
-  it should "return FileNotFound for missing schema file" in {
-    val results = Registrar.registerAll(
-      registryClient,
-      List(RegistryRegistration("it-missing-file", new File("/nonexistent/schema.avsc"))),
-    )
-
-    results should have size 1
-    results.head shouldBe a[Left[_, _]]
-    results.head.left.get shouldBe a[RegistryError.FileNotFound]
-  }
-
-  it should "return RegistrationFailed for invalid schema content" in {
-    val file = tempSchemaFile("not valid avro json {{{")
-
-    val results = Registrar.registerAll(
-      registryClient,
-      List(RegistryRegistration("it-invalid-schema", file)),
-    )
-
-    results should have size 1
-    results.head shouldBe a[Left[_, _]]
-    results.head.left.get shouldBe a[RegistryError.RegistrationFailed]
-  }
+  // FileNotFound (missing file) and RegistrationFailed (invalid Avro content) fail in readSchemaFile
+  // / buildParsedSchema before client.register — pure logic owned by RegistrarSpec. Removed here to
+  // avoid duplicating registry-free paths.
 
   it should "register a Protobuf schema with correct type" in {
     val protoContent =
