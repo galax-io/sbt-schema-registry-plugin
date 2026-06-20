@@ -46,35 +46,46 @@ trait SchemaRegistryContainerSuite extends BeforeAndAfterAll { self: Suite =>
 
   override def beforeAll(): Unit = {
     super.beforeAll()
+    try {
+      network = Network.newNetwork()
 
-    network = Network.newNetwork()
+      kafka = new ConfluentKafkaContainer(DockerImageName.parse(kafkaImage))
+      kafka.withListener("kafka:19092")
+      kafka.withNetwork(network)
+      kafka.start()
 
-    kafka = new ConfluentKafkaContainer(DockerImageName.parse(kafkaImage))
-    kafka.withListener("kafka:19092")
-    kafka.withNetwork(network)
-    kafka.start()
+      sr = new JGenericContainer(DockerImageName.parse(schemaRegistryImage))
+      sr.withNetwork(network)
+      sr.withExposedPorts(8081)
+      sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
+      sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:19092")
+      sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
+      sr.start()
 
-    sr = new JGenericContainer(DockerImageName.parse(schemaRegistryImage))
-    sr.withNetwork(network)
-    sr.withExposedPorts(8081)
-    sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
-    sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:19092")
-    sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
-    sr.start()
+      registryUrl = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
+      registryClient = new CachedSchemaRegistryClient(registryUrl, clientCacheSize)
 
-    registryUrl = s"http://${sr.getHost}:${sr.getMappedPort(8081)}"
-    registryClient = new CachedSchemaRegistryClient(registryUrl, clientCacheSize)
-
-    registerSubjects()
+      registerSubjects()
+    } catch {
+      case e: Throwable =>
+        // ScalaTest does NOT call afterAll when beforeAll throws — tear down here so a failed
+        // container start or registerSubjects() never leaks the partially-started containers.
+        stopQuietly()
+        throw e
+    }
   }
 
   override def afterAll(): Unit =
-    try {
-      // Close the client first (was inconsistently closed across specs), then the containers and
-      // network — each guarded so one failure never masks the rest.
-      Option(registryClient).foreach(c => Try(c.close()))
-      Option(sr).foreach(c => Try(c.stop()))
-      Option(kafka).foreach(c => Try(c.stop()))
-      Option(network).foreach(c => Try(c.close()))
-    } finally super.afterAll()
+    try stopQuietly()
+    finally super.afterAll()
+
+  /** Idempotent teardown: close the client first (was inconsistently closed across specs), then the
+    * containers and network — each guarded so one failure never masks the rest.
+    */
+  private def stopQuietly(): Unit = {
+    Option(registryClient).foreach(c => Try(c.close()))
+    Option(sr).foreach(c => Try(c.stop()))
+    Option(kafka).foreach(c => Try(c.stop()))
+    Option(network).foreach(c => Try(c.close()))
+  }
 }

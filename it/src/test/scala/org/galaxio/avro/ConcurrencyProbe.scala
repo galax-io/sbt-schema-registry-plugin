@@ -20,7 +20,11 @@ object ConcurrencyProbe {
   final case class Probe(client: SchemaRegistryClient, maxConcurrent: AtomicInteger)
 
   /** @param delegate     the real client to forward to
-    * @param parallelism  expected simultaneous in-flight gated calls (latch size)
+    * @param parallelism  expected simultaneous in-flight gated calls — i.e. the latch size. It MUST
+    *                     equal the number of gated calls the test triggers concurrently. If fewer
+    *                     gated calls occur, each parks for up to 10s before `await` returns false and
+    *                     [[Probe.maxConcurrent]] stays below `parallelism` — surfacing as an assertion
+    *                     failure, never an indefinite hang.
     * @param gatedMethods method names that should park on the barrier (e.g. "getLatestSchemaMetadata")
     */
   def gating(delegate: SchemaRegistryClient, parallelism: Int, gatedMethods: Set[String]): Probe = {
