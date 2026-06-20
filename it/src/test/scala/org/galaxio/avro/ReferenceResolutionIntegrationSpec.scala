@@ -136,13 +136,22 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
     registerWithRefs(dep, depJson, List(new ConfluentSchemaReference("Base", base, 1)))
 
     val expanded = ReferenceResolver.resolve(List(RegistrySubject.latest(dep)), fetch).getOrElse(fail())
+    expanded should have size 2
 
-    val downloader = Downloader(registryUrl, dir, silentLogger)
-    try {
-      val parallel = ParallelDownloader(downloader, 2, RetryPolicy(maxRetries = 0), silentLogger)
-      val results  = parallel.downloadAll(expanded)
-      results.foreach { case (_, r) => r shouldBe a[Right[_, _]] }
-    } finally downloader.close()
+    // Resolved references are Pinned, so the parallel download fetches each via getByVersion; gate
+    // that on a 2-wide barrier to prove the two downloads actually overlap (not just both succeed).
+    val probe      = ConcurrencyProbe.gating(registryClient, 2, Set("getByVersion"))
+    val downloader = Downloader.withExternalClient(probe.client, dir, silentLogger)
+    val results =
+      try {
+        val parallel = ParallelDownloader(downloader, 2, RetryPolicy(maxRetries = 0), silentLogger)
+        parallel.downloadAll(expanded)
+      } finally downloader.close()
+
+    val bySubject = results.map { case (s, r) => s.name -> r }.toMap
+    bySubject(dep)  shouldBe a[Right[_, _]]
+    bySubject(base) shouldBe a[Right[_, _]]
+    probe.maxConcurrent.get shouldBe 2
 
     Files.exists(dir.resolve(s"$dep-1.avsc"))  shouldBe true
     Files.exists(dir.resolve(s"$base-1.avsc")) shouldBe true

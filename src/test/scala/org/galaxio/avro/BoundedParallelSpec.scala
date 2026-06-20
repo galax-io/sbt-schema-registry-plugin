@@ -3,6 +3,9 @@ package org.galaxio.avro
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.{CountDownLatch, TimeUnit}
+
 class BoundedParallelSpec extends AnyFlatSpec with Matchers {
 
   "BoundedParallel.traverse" should "return Nil for empty input" in {
@@ -29,11 +32,43 @@ class BoundedParallelSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "actually run elements concurrently when parallelism > 1" in {
-    // 4 tasks each sleeping 200ms on a pool of 4 finish well under the 800ms sequential sum.
-    val start   = System.nanoTime()
-    val results = BoundedParallel.traverse(List(1, 2, 3, 4), 4) { i => Thread.sleep(200); i }
-    val elapsed = (System.nanoTime() - start) / 1000000
-    results shouldBe List(1, 2, 3, 4)
-    elapsed should be < 700L
+    // Deterministic proof (no timing margins): every task blocks on a shared latch that only
+    // reaches zero once ALL `parallelism` tasks are running at once. If traverse ran sequentially
+    // the first task would wait forever and time out → await returns false and the test fails.
+    val parallelism = 4
+    val latch       = new CountDownLatch(parallelism)
+    val current     = new AtomicInteger(0)
+    val maxObserved = new AtomicInteger(0)
+
+    val results = BoundedParallel.traverse((1 to parallelism).toList, parallelism) { i =>
+      val running    = current.incrementAndGet()
+      maxObserved.getAndUpdate(prev => math.max(prev, running))
+      latch.countDown()
+      val allStarted = latch.await(10, TimeUnit.SECONDS)
+      current.decrementAndGet()
+      allStarted shouldBe true
+      i
+    }
+
+    results shouldBe (1 to parallelism).toList
+    maxObserved.get shouldBe parallelism // all `parallelism` tasks were in flight simultaneously
+  }
+
+  it should "never exceed the parallelism bound" in {
+    // 12 overlapping tasks (each briefly sleeping) on a pool of 3: a correct bound keeps the live
+    // count <= 3 at every instant. A pool that over-subscribes would record a violation.
+    val parallelism = 3
+    val current     = new AtomicInteger(0)
+    val violations  = new AtomicInteger(0)
+
+    val results = BoundedParallel.traverse((1 to 12).toList, parallelism) { i =>
+      if (current.incrementAndGet() > parallelism) violations.incrementAndGet()
+      Thread.sleep(20)
+      current.decrementAndGet()
+      i
+    }
+
+    results shouldBe (1 to 12).toList
+    violations.get shouldBe 0
   }
 }
