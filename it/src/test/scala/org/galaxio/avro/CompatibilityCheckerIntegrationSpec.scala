@@ -81,7 +81,10 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
     val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-check-fail", file))
     result shouldBe a[CompatibilityResult.Incompatible]
     val incompatible = result.asInstanceOf[CompatibilityResult.Incompatible]
+    incompatible.subject shouldBe "compat-check-fail"
     incompatible.messages should not be empty
+    // The break is a new required field with no default — the verbose verdict must say so.
+    incompatible.messages.exists(_.toLowerCase.contains("default")) shouldBe true
   }
 
   it should "return Compatible for a brand-new subject with no prior versions" in {
@@ -166,6 +169,11 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
 
     report.compatible should have size 1
     report.incompatible should have size 1
+    report.failed shouldBe empty
+    // Counts alone don't prove WHICH registration landed where, nor that the verdict carries detail.
+    report.compatible.head.subject shouldBe "compat-batch"
+    report.incompatible.head.subject shouldBe "compat-batch"
+    report.incompatible.head.messages should not be empty
     report.isSuccess shouldBe false
   }
 }

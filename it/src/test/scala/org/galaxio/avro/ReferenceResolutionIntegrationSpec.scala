@@ -81,6 +81,8 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
     finally Files.walk(dir).sorted(java.util.Comparator.reverseOrder()).forEach(Files.deleteIfExists(_))
   }
 
+  private def readString(p: Path): String = new String(Files.readAllBytes(p))
+
   private val baseJson =
     """{"type":"record","name":"Base","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
   private val depJson  =
@@ -93,15 +95,20 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
       registryClient.register(base, avroSchema(baseJson))
       registerWithRefs(dep, depJson, List(new ConfluentSchemaReference("Base", base, 1)))
 
-      val expanded = ReferenceResolver.resolve(List(RegistrySubject.latest(dep)), fetch).getOrElse(fail())
-      expanded.map(_.name) should contain allOf (dep, base)
+      val expanded      = ReferenceResolver.resolve(List(RegistrySubject.latest(dep)), fetch).getOrElse(fail())
+      val expandedNamed = expanded.map(s => s.name -> s).toMap
+      // Exact expansion (not a subset), each resolved to pinned v1 (root first, then its reference).
+      expanded.map(_.name) should contain theSameElementsAs List(dep, base)
+      expandedNamed(dep)  shouldBe RegistrySubject.Pinned(dep, 1)
+      expandedNamed(base) shouldBe RegistrySubject.Pinned(base, 1)
 
       val downloader = Downloader(registryUrl, dir, silentLogger)
       try expanded.foreach(s => downloader.schemaSubjectToFile(s) shouldBe a[Right[_, _]])
       finally downloader.close()
 
-      Files.exists(dir.resolve(s"$dep-1.avsc"))  shouldBe true
-      Files.exists(dir.resolve(s"$base-1.avsc")) shouldBe true
+      // Both bodies are actually written and parseable — proves the refs were resolvable, not just that files exist.
+      new Schema.Parser().parse(readString(dir.resolve(s"$dep-1.avsc"))).getName  shouldBe "Dependent"
+      new Schema.Parser().parse(readString(dir.resolve(s"$base-1.avsc"))).getName shouldBe "Base"
     }
 
   it should "fail fast with the failing subject when a fetch fails (PS-4)" in {

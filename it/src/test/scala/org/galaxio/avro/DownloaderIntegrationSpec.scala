@@ -136,8 +136,11 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
         val r2 = d2.schemaSubjectToFile(RegistrySubject(subject, 1))
 
         (r1, r2) match {
-          case (Right(p1), Right(p2)) => readFile(p1) shouldBe readFile(p2)
-          case _                      => fail("Both downloads should succeed")
+          case (Right(p1), Right(p2)) =>
+            // Equal AND correct — mutual equality alone would pass if both were identically wrong.
+            readFile(p1) shouldBe schemaJson
+            readFile(p2) shouldBe schemaJson
+          case _ => fail("Both downloads should succeed")
         }
       }
     }
@@ -223,6 +226,12 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
       val file = dir.resolve(s"$mainSubject-1.avsc")
       Files.exists(file) shouldBe true
       readFile(file) shouldBe mainJson
+
+      // The referencing subject must actually carry its reference (would pass even if refs were dropped otherwise).
+      val mainRefs = registryClient.getLatestSchemaMetadata(mainSubject).getReferences
+      mainRefs.size shouldBe 1
+      mainRefs.get(0).getSubject shouldBe baseSubject
+      mainRefs.get(0).getVersion.intValue shouldBe 1
     }
   }
 
@@ -281,6 +290,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     result shouldBe a[Right[_, _]]
     val file   = dir.resolve(s"$subject-1.proto")
     Files.exists(file) shouldBe true
+    readFile(file) should include("message DlProto") // body, not just the filename
   }
 
   it should "download JSON Schema with .json extension" in withFixture { (dir, downloader) =>
@@ -298,6 +308,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     result shouldBe a[Right[_, _]]
     val file   = dir.resolve(s"$subject-1.json")
     Files.exists(file) shouldBe true
+    readFile(file) should include("\"id\"") // body, not just the filename
   }
 
   it should "download mixed schema types with correct extensions" in withFixture { (dir, downloader) =>
@@ -330,5 +341,10 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with BeforeAnd
     Files.exists(dir.resolve(s"$avroSubject-1.avsc")) shouldBe true
     Files.exists(dir.resolve(s"$protoSubject-1.proto")) shouldBe true
     Files.exists(dir.resolve(s"$jsonSubject-1.json")) shouldBe true
+
+    // Each file holds the right body, not just the right extension.
+    readFile(dir.resolve(s"$avroSubject-1.avsc")) shouldBe avroJson
+    readFile(dir.resolve(s"$protoSubject-1.proto")) should include("MixProto")
+    readFile(dir.resolve(s"$jsonSubject-1.json")) should include("\"v\"")
   }
 }
