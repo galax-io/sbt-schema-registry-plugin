@@ -1,8 +1,8 @@
 resolvers ++= Seq("Confluent" at "https://packages.confluent.io/maven/")
 
 libraryDependencies ++= Seq(
-  "org.testcontainers" % "kafka"                       % "1.21.3",
-  "io.confluent"       % "kafka-json-schema-provider"  % "7.5.0",
+  "org.testcontainers" % "kafka"                      % "1.21.3",
+  "io.confluent"       % "kafka-json-schema-provider" % "7.5.0",
 )
 
 sys.props.get("plugin.version") match {

@@ -39,7 +39,7 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Sche
   // --- US2: Exact + pattern composition ---
 
   it should "give precedence to exact Pinned subject over pattern match" in {
-    val specs = List(
+    val specs  = List(
       SubjectSpec.Exact(RegistrySubject.Pinned("com.myorg.User-value", 1)),
       SubjectSpec.Pattern("com\\.myorg\\..*-value"),
     )
@@ -59,7 +59,7 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Sche
   // --- US3: Multiple patterns ---
 
   it should "union results from multiple patterns across namespaces" in {
-    val specs = List(
+    val specs  = List(
       SubjectSpec.Pattern("com\\.myorg\\.User-value"),
       SubjectSpec.Pattern("internal\\..*"),
     )
