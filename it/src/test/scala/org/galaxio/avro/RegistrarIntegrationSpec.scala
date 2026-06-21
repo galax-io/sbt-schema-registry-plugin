@@ -25,7 +25,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
   "Registrar (integration)" should "register an Avro schema and return schema ID" in {
     val schemaJson =
       """{"type":"record","name":"RegTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
-    val file = tempSchemaFile(schemaJson)
+    val file       = tempSchemaFile(schemaJson)
 
     val results = Registrar.registerAll(
       registryClient,
@@ -47,8 +47,8 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
   it should "return same schema ID for idempotent registration" in {
     val schemaJson =
       """{"type":"record","name":"IdempotentTest","namespace":"org.galaxio","fields":[{"name":"v","type":"string"}]}"""
-    val file = tempSchemaFile(schemaJson)
-    val reg  = List(RegistryRegistration("it-idempotent", file))
+    val file       = tempSchemaFile(schemaJson)
+    val reg        = List(RegistryRegistration("it-idempotent", file))
 
     val first  = Registrar.registerAll(registryClient, reg)
     val second = Registrar.registerAll(registryClient, reg)
@@ -67,7 +67,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
         |message ProtoRegTest {
         |  string value = 1;
         |}""".stripMargin
-    val file = tempSchemaFile(protoContent, ".proto")
+    val file         = tempSchemaFile(protoContent, ".proto")
 
     val results = Registrar.registerAll(
       registryClient,
@@ -92,7 +92,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
         |    "value": { "type": "string" }
         |  }
         |}""".stripMargin
-    val file = tempSchemaFile(jsonContent, ".json")
+    val file        = tempSchemaFile(jsonContent, ".json")
 
     val results = Registrar.registerAll(
       registryClient,
@@ -115,8 +115,8 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
         |message BaseMsg {
         |  string id = 1;
         |}""".stripMargin
-    val baseFile = tempSchemaFile(baseContent, ".proto")
-    val baseRegs = Registrar.registerAll(
+    val baseFile    = tempSchemaFile(baseContent, ".proto")
+    val baseRegs    = Registrar.registerAll(
       registryClient,
       List(RegistryRegistration("it-proto-ref-base", baseFile, SchemaType.Protobuf)),
     )
@@ -128,9 +128,9 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
         |message DepMsg {
         |  string value = 1;
         |}""".stripMargin
-    val depFile = tempSchemaFile(depContent, ".proto")
-    val depRefs = List(SchemaReference("BaseMsg.proto", "it-proto-ref-base", 1))
-    val depRegs = Registrar.registerAll(
+    val depFile    = tempSchemaFile(depContent, ".proto")
+    val depRefs    = List(SchemaReference("BaseMsg.proto", "it-proto-ref-base", 1))
+    val depRegs    = Registrar.registerAll(
       registryClient,
       List(RegistryRegistration("it-proto-ref-dep", depFile, SchemaType.Protobuf, depRefs)),
     )
@@ -139,7 +139,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
     // Prove the reference was actually stored on the dependent subject (not silently dropped).
     val refs = registryClient.getLatestSchemaMetadata("it-proto-ref-dep").getReferences
     refs.size shouldBe 1
-    val ref = refs.get(0)
+    val ref  = refs.get(0)
     ref.getName shouldBe "BaseMsg.proto"
     ref.getSubject shouldBe "it-proto-ref-base"
     ref.getVersion.intValue shouldBe 1
@@ -148,7 +148,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
   it should "register JSON Schema with references" in {
     val baseContent = """{"type":"object","properties":{"id":{"type":"integer"}}}"""
     val baseFile    = tempSchemaFile(baseContent, ".json")
-    val baseRegs = Registrar.registerAll(
+    val baseRegs    = Registrar.registerAll(
       registryClient,
       List(RegistryRegistration("it-json-ref-base", baseFile, SchemaType.Json)),
     )
@@ -162,9 +162,9 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
         |    "value": { "type": "string" }
         |  }
         |}""".stripMargin
-    val depFile = tempSchemaFile(depContent, ".json")
-    val depRefs = List(SchemaReference("base.json", "it-json-ref-base", 1))
-    val depRegs = Registrar.registerAll(
+    val depFile    = tempSchemaFile(depContent, ".json")
+    val depRefs    = List(SchemaReference("base.json", "it-json-ref-base", 1))
+    val depRegs    = Registrar.registerAll(
       registryClient,
       List(RegistryRegistration("it-json-ref-dep", depFile, SchemaType.Json, depRefs)),
     )
@@ -173,7 +173,7 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
     // Prove the reference was actually stored on the dependent subject (not silently dropped).
     val refs = registryClient.getLatestSchemaMetadata("it-json-ref-dep").getReferences
     refs.size shouldBe 1
-    val ref = refs.get(0)
+    val ref  = refs.get(0)
     ref.getName shouldBe "base.json"
     ref.getSubject shouldBe "it-json-ref-base"
     ref.getVersion.intValue shouldBe 1
@@ -182,8 +182,8 @@ class RegistrarIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegi
   it should "support round-trip: register then download matches" in withTempDir { dir =>
     val schemaJson =
       """{"type":"record","name":"RoundTrip","namespace":"org.galaxio","fields":[{"name":"ts","type":"long"}]}"""
-    val file    = tempSchemaFile(schemaJson)
-    val subject = "it-round-trip"
+    val file       = tempSchemaFile(schemaJson)
+    val subject    = "it-round-trip"
 
     val regResults = Registrar.registerAll(
       registryClient,

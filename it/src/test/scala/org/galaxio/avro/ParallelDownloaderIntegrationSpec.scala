@@ -13,9 +13,11 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with S
 
   override protected def registerSubjects(): Unit =
     (1 to 5).foreach { i =>
-      val schema = new AvroSchema(new Schema.Parser().parse(
-        s"""{"type":"record","name":"Test$i","fields":[{"name":"id","type":"int"}]}""",
-      ))
+      val schema = new AvroSchema(
+        new Schema.Parser().parse(
+          s"""{"type":"record","name":"Test$i","fields":[{"name":"id","type":"int"}]}""",
+        ),
+      )
       registryClient.register(s"test-subject-$i", schema)
     }
 
@@ -49,7 +51,7 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with S
   it should "handle partial failure with mix of valid and invalid subjects" in {
     val outDir     = tmpDir
     val downloader = Downloader.withExternalClient(registryClient, outDir, silentLogger)
-    val subjects = List(
+    val subjects   = List(
       RegistrySubject.Latest("test-subject-1"),
       RegistrySubject.Latest("nonexistent-subject"),
       RegistrySubject.Latest("test-subject-3"),

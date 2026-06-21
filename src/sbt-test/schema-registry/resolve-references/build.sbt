@@ -7,10 +7,10 @@ import org.galaxio.avro.{RegistryRegistration, SchemaReference}
 // deletes files and re-downloads).
 lazy val root = (project in file("."))
   .settings(
-    scalaVersion              := "2.12.21",
-    schemaRegistryUrl         := RegistryFixture.url,
-    schemaRegistryIncremental := false,
-    schemaRegistryRegistrations := Seq(
+    scalaVersion                  := "2.12.21",
+    schemaRegistryUrl             := RegistryFixture.url,
+    schemaRegistryIncremental     := false,
+    schemaRegistryRegistrations   := Seq(
       RegistryRegistration("it.e2e.Base", baseDirectory.value / "src/main/avro/Base.avsc"),
       RegistryRegistration(
         "it.e2e.Dependent",
