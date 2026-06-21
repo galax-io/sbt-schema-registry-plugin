@@ -2,10 +2,10 @@ import org.galaxio.avro.{RegistryRegistration, RegistrySubject, SchemaType}
 
 lazy val root = (project in file("."))
   .settings(
-    scalaVersion               := "2.12.21",
-    schemaRegistryUrl          := RegistryFixture.url,
-    schemaRegistryTargetFolder := baseDirectory.value / "target" / "schemas",
-    schemaRegistryRegistrations := Seq(
+    scalaVersion                   := "2.12.21",
+    schemaRegistryUrl              := RegistryFixture.url,
+    schemaRegistryTargetFolder     := baseDirectory.value / "target" / "schemas",
+    schemaRegistryRegistrations    := Seq(
       RegistryRegistration("it.e2e.DownloadAvro", baseDirectory.value / "src/main/avro/Test.avsc"),
       RegistryRegistration("it.e2e.DownloadProto", baseDirectory.value / "src/main/protobuf/Test.proto", SchemaType.Protobuf),
       RegistryRegistration("it.e2e.DownloadJson", baseDirectory.value / "src/main/json/Test.json", SchemaType.Json),

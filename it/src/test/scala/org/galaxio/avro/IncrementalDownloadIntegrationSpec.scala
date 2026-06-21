@@ -36,45 +36,44 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
   private val userSchema =
     """{"type":"record","name":"User","namespace":"incr.test","fields":[{"name":"name","type":"string"}]}"""
 
-  "IncrementalResolver with real registry" should "download all on first run and create manifest" in withTempDir {
-    outputDir =>
-      val orderSubject = "incr.test.Order"
-      val userSubject  = "incr.test.User"
+  "IncrementalResolver with real registry" should "download all on first run and create manifest" in withTempDir { outputDir =>
+    val orderSubject = "incr.test.Order"
+    val userSubject  = "incr.test.User"
 
-      registryClient.register(orderSubject, avroSchema(orderSchemaV1))
-      registryClient.register(userSubject, avroSchema(userSchema))
+    registryClient.register(orderSubject, avroSchema(orderSchemaV1))
+    registryClient.register(userSubject, avroSchema(userSchema))
 
-      val subjects = List(
-        RegistrySubject.Latest(orderSubject),
-        RegistrySubject.Latest(userSubject),
-      )
+    val subjects = List(
+      RegistrySubject.Latest(orderSubject),
+      RegistrySubject.Latest(userSubject),
+    )
 
-      val manifest = VersionManifest.empty
-      val decisions = IncrementalResolver.plan(
-        manifest,
-        subjects,
-        s =>
-          Try(registryClient.getLatestSchemaMetadata(s).getVersion: Int).toEither.left
-            .map(DownloadError.SchemaFetchFailed(s, _)),
-      )
+    val manifest  = VersionManifest.empty
+    val decisions = IncrementalResolver.plan(
+      manifest,
+      subjects,
+      s =>
+        Try(registryClient.getLatestSchemaMetadata(s).getVersion: Int).toEither.left
+          .map(DownloadError.SchemaFetchFailed(s, _)),
+    )
 
-      decisions.collect { case d: DownloadDecision.Download => d } should have size 2
-      decisions.collect { case s: DownloadDecision.Skip     => s } shouldBe empty
+    decisions.collect { case d: DownloadDecision.Download => d } should have size 2
+    decisions.collect { case s: DownloadDecision.Skip => s } shouldBe empty
 
-      val downloader = Downloader.withExternalClient(registryClient, outputDir, silentLogger)
-      val downloaded = decisions.collect { case d @ DownloadDecision.Download(subject, _, _) =>
-        downloader.schemaSubjectToFile(subject) shouldBe a[Right[_, _]]
-        subject.name -> d.resolvedVersion.get
-      }
+    val downloader = Downloader.withExternalClient(registryClient, outputDir, silentLogger)
+    val downloaded = decisions.collect { case d @ DownloadDecision.Download(subject, _, _) =>
+      downloader.schemaSubjectToFile(subject) shouldBe a[Right[_, _]]
+      subject.name -> d.resolvedVersion.get
+    }
 
-      // The download actually wrote both files (its Either was previously discarded).
-      Files.exists(outputDir.resolve(s"$orderSubject-1.avsc")) shouldBe true
-      Files.exists(outputDir.resolve(s"$userSubject-1.avsc")) shouldBe true
+    // The download actually wrote both files (its Either was previously discarded).
+    Files.exists(outputDir.resolve(s"$orderSubject-1.avsc")) shouldBe true
+    Files.exists(outputDir.resolve(s"$userSubject-1.avsc")) shouldBe true
 
-      val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
-      newManifest.versions should have size 2
-      newManifest.versionOf(orderSubject) shouldBe Some(1)
-      newManifest.versionOf(userSubject) shouldBe Some(1)
+    val newManifest = IncrementalResolver.updatedManifest(manifest, downloaded)
+    newManifest.versions should have size 2
+    newManifest.versionOf(orderSubject) shouldBe Some(1)
+    newManifest.versionOf(userSubject) shouldBe Some(1)
   }
 
   // "skip all when unchanged" is pure plan logic (owned by IncrementalResolverSpec "skip Latest
@@ -105,7 +104,7 @@ class IncrementalDownloadIntegrationSpec extends AnyFlatSpec with Matchers with 
       )
 
       val downloads = decisions.collect { case d: DownloadDecision.Download => d }
-      val skips     = decisions.collect { case s: DownloadDecision.Skip     => s }
+      val skips     = decisions.collect { case s: DownloadDecision.Skip => s }
 
       downloads should have size 1
       downloads.head.subject.name shouldBe orderSubject

@@ -9,18 +9,17 @@ import org.testcontainers.utility.DockerImageName
 
 import scala.util.Try
 
-/** Boots one Kafka + Confluent Schema Registry (and a `CachedSchemaRegistryClient`) per spec that
-  * mixes this in — the boot/teardown block previously duplicated verbatim in every IT spec.
+/** Boots one Kafka + Confluent Schema Registry (and a `CachedSchemaRegistryClient`) per spec that mixes this in — the
+  * boot/teardown block previously duplicated verbatim in every IT spec.
   *
-  * DECISION: one registry PER spec, not a module-wide singleton. Specs such as
-  * `SubjectExplorerIntegrationSpec` assert the EXACT global subject list via `getAllSubjects`, and
-  * `SubjectResolverIntegrationSpec` registers `*User*`/`*-value` subjects that would leak across a
-  * shared registry and break those assertions; a singleton would also force
-  * `Test / parallelExecution := false` plus per-spec namespace isolation. Per-spec boot keeps every
-  * existing assertion valid at the cost of an unchanged boot count.
+  * DECISION: one registry PER spec, not a module-wide singleton. Specs such as `SubjectExplorerIntegrationSpec` assert the
+  * EXACT global subject list via `getAllSubjects`, and `SubjectResolverIntegrationSpec` registers `*User*`/`*-value` subjects
+  * that would leak across a shared registry and break those assertions; a singleton would also force
+  * `Test / parallelExecution := false` plus per-spec namespace isolation. Per-spec boot keeps every existing assertion valid at
+  * the cost of an unchanged boot count.
   *
-  * Mix in, then use `registryUrl` / `registryClient`. Override `registerSubjects()` to seed fixtures
-  * after the client is ready. The client and containers are torn down in `afterAll`.
+  * Mix in, then use `registryUrl` / `registryClient`. Override `registerSubjects()` to seed fixtures after the client is ready.
+  * The client and containers are torn down in `afterAll`.
   */
 trait SchemaRegistryContainerSuite extends BeforeAndAfterAll { self: Suite =>
 
@@ -79,8 +78,8 @@ trait SchemaRegistryContainerSuite extends BeforeAndAfterAll { self: Suite =>
     try stopQuietly()
     finally super.afterAll()
 
-  /** Idempotent teardown: close the client first (was inconsistently closed across specs), then the
-    * containers and network — each guarded so one failure never masks the rest.
+  /** Idempotent teardown: close the client first (was inconsistently closed across specs), then the containers and network —
+    * each guarded so one failure never masks the rest.
     */
   private def stopQuietly(): Unit = {
     Option(registryClient).foreach(c => Try(c.close()))

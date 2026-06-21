@@ -13,9 +13,8 @@ import scala.collection.JavaConverters._
 
 /** End-to-end reference resolution against a real Confluent Schema Registry.
   *
-  * Validates the parts the pure unit suite stubs: the real `getReferences` mapping (boxed
-  * `Integer`, nullable list) and composition of the resolver output with the existing
-  * incremental and parallel download stages (FR-009).
+  * Validates the parts the pure unit suite stubs: the real `getReferences` mapping (boxed `Integer`, nullable list) and
+  * composition of the resolver output with the existing incremental and parallel download stages (FR-009).
   */
 class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with SchemaRegistryContainerSuite {
 
@@ -30,8 +29,8 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
     ()
   }
 
-  /** The exact fetch the plugin wires — reads references from a real registry.
-    * `lazy` so `registryClient` (set in `beforeAll`) is captured after init, not at construction.
+  /** The exact fetch the plugin wires — reads references from a real registry. `lazy` so `registryClient` (set in `beforeAll`)
+    * is captured after init, not at construction.
     */
   private lazy val fetch: (String, Option[Int]) => Either[DownloadError, ResolvedSchema] =
     Downloader.referenceFetch(registryClient)
@@ -60,7 +59,7 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
       val expandedNamed = expanded.map(s => s.name -> s).toMap
       // Exact expansion (not a subset), each resolved to pinned v1 (root first, then its reference).
       expanded.map(_.name) should contain theSameElementsAs List(dep, base)
-      expandedNamed(dep)  shouldBe RegistrySubject.Pinned(dep, 1)
+      expandedNamed(dep) shouldBe RegistrySubject.Pinned(dep, 1)
       expandedNamed(base) shouldBe RegistrySubject.Pinned(base, 1)
 
       val downloader = Downloader(registryUrl, dir, silentLogger)
@@ -68,15 +67,15 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
       finally downloader.close()
 
       // Both bodies are actually written and parseable — proves the refs were resolvable, not just that files exist.
-      new Schema.Parser().parse(readString(dir.resolve(s"$dep-1.avsc"))).getName  shouldBe "Dependent"
+      new Schema.Parser().parse(readString(dir.resolve(s"$dep-1.avsc"))).getName shouldBe "Dependent"
       new Schema.Parser().parse(readString(dir.resolve(s"$base-1.avsc"))).getName shouldBe "Base"
     }
 
   it should "fail fast with the failing subject when a fetch fails (PS-4)" in {
     val result = ReferenceResolver.resolve(List(RegistrySubject.latest("it-rr-missing")), fetch)
     result shouldBe a[Left[_, _]]
-    val err = result.swap.getOrElse(fail())
-    err                                                       shouldBe a[DownloadError.SchemaFetchFailed]
+    val err    = result.swap.getOrElse(fail())
+    err shouldBe a[DownloadError.SchemaFetchFailed]
     err.asInstanceOf[DownloadError.SchemaFetchFailed].subject shouldBe "it-rr-missing"
   }
 
@@ -88,12 +87,12 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
 
     val expanded = ReferenceResolver.resolve(List(RegistrySubject.latest(dep)), fetch).getOrElse(fail())
 
-    val manifest  = VersionManifest(Map(base -> 1))
+    val manifest                                       = VersionManifest(Map(base -> 1))
     val noLookup: String => Either[DownloadError, Int] =
       s => Left(DownloadError.SubjectListFailed(new RuntimeException(s"lookup not expected: $s")))
-    val decisions = IncrementalResolver.plan(manifest, expanded, noLookup)
+    val decisions                                      = IncrementalResolver.plan(manifest, expanded, noLookup)
 
-    decisions                                                          should contain(DownloadDecision.Skip(base, 1))
+    decisions should contain(DownloadDecision.Skip(base, 1))
     decisions.collect { case d: DownloadDecision.Download => d.subject.name } should contain(dep)
   }
 
@@ -110,18 +109,18 @@ class ReferenceResolutionIntegrationSpec extends AnyFlatSpec with Matchers with 
     // that on a 2-wide barrier to prove the two downloads actually overlap (not just both succeed).
     val probe      = ConcurrencyProbe.gating(registryClient, 2, Set("getByVersion"))
     val downloader = Downloader.withExternalClient(probe.client, dir, silentLogger)
-    val results =
+    val results    =
       try {
         val parallel = ParallelDownloader(downloader, 2, RetryPolicy(maxRetries = 0), silentLogger)
         parallel.downloadAll(expanded)
       } finally downloader.close()
 
     val bySubject = results.map { case (s, r) => s.name -> r }.toMap
-    bySubject(dep)  shouldBe a[Right[_, _]]
+    bySubject(dep) shouldBe a[Right[_, _]]
     bySubject(base) shouldBe a[Right[_, _]]
     probe.maxConcurrent.get shouldBe 2
 
-    Files.exists(dir.resolve(s"$dep-1.avsc"))  shouldBe true
+    Files.exists(dir.resolve(s"$dep-1.avsc")) shouldBe true
     Files.exists(dir.resolve(s"$base-1.avsc")) shouldBe true
   }
 }

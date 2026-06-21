@@ -30,15 +30,15 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
   }
 
   it should "return Incompatible with verbose messages for a breaking change" in {
-    val v1 =
+    val v1         =
       """{"type":"record","name":"CompatV2","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     val v2breaking =
       """{"type":"record","name":"CompatV2","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"name","type":"string"}]}"""
 
     registryClient.register("compat-check-fail", new AvroSchema(v1))
 
-    val file   = tempSchemaFile(v2breaking)
-    val result = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-check-fail", file))
+    val file         = tempSchemaFile(v2breaking)
+    val result       = CompatibilityChecker.checkOne(registryClient, RegistryRegistration("compat-check-fail", file))
     result shouldBe a[CompatibilityResult.Incompatible]
     val incompatible = result.asInstanceOf[CompatibilityResult.Incompatible]
     incompatible.subject shouldBe "compat-check-fail"
@@ -60,7 +60,7 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
   // not exist"). Removed from the IT layer to avoid duplicating registry-free logic.
 
   it should "return Compatible for backward-compatible Protobuf change" in {
-    val v1 =
+    val v1     =
       """syntax = "proto3";
         |message ProtoCompat {
         |  string id = 1;
@@ -69,7 +69,7 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
     val v1Reg  = RegistryRegistration("compat-proto-pass", v1File, SchemaType.Protobuf)
     Registrar.registerAll(registryClient, List(v1Reg))
 
-    val v2 =
+    val v2     =
       """syntax = "proto3";
         |message ProtoCompat {
         |  string id = 1;
@@ -84,12 +84,13 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
   }
 
   it should "return Compatible for backward-compatible JSON Schema change" in {
-    val v1 = """{"type":"object","properties":{"id":{"type":"integer"}},"additionalProperties":false}"""
+    val v1     = """{"type":"object","properties":{"id":{"type":"integer"}},"additionalProperties":false}"""
     val v1File = tempSchemaFile(v1, ".json")
     val v1Reg  = RegistryRegistration("compat-json-pass", v1File, SchemaType.Json)
     Registrar.registerAll(registryClient, List(v1Reg))
 
-    val v2     = """{"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"}},"additionalProperties":false}"""
+    val v2     =
+      """{"type":"object","properties":{"id":{"type":"integer"},"name":{"type":"string"}},"additionalProperties":false}"""
     val v2File = tempSchemaFile(v2, ".json")
     val result = CompatibilityChecker.checkOne(
       registryClient,
@@ -103,7 +104,7 @@ class CompatibilityCheckerIntegrationSpec extends AnyFlatSpec with Matchers with
       """{"type":"record","name":"BatchTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"}]}"""
     registryClient.register("compat-batch", new AvroSchema(v1))
 
-    val compatible =
+    val compatible   =
       """{"type":"record","name":"BatchTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"extra","type":"string","default":""}]}"""
     val incompatible =
       """{"type":"record","name":"BatchTest","namespace":"org.galaxio","fields":[{"name":"id","type":"long"},{"name":"required_field","type":"string"}]}"""

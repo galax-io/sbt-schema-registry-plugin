@@ -101,7 +101,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with SchemaReg
             // Equal AND correct — mutual equality alone would pass if both were identically wrong.
             readFile(p1) shouldBe schemaJson
             readFile(p2) shouldBe schemaJson
-          case _ => fail("Both downloads should succeed")
+          case _                      => fail("Both downloads should succeed")
         }
       }
     }

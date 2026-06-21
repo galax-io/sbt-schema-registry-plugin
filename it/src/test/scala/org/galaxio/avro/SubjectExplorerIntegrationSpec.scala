@@ -46,7 +46,7 @@ class SubjectExplorerIntegrationSpec extends AnyFlatSpec with Matchers with Sche
     // Real getAllVersions over the two registered Order versions and the single User version.
     // versionRange string formatting is pure and owned by SubjectInfoSpec.
     listing.subjects.find(_.name == orderSubject).get.versions shouldBe List(1, 2)
-    listing.subjects.find(_.name == userSubject).get.versions  shouldBe List(1)
+    listing.subjects.find(_.name == userSubject).get.versions shouldBe List(1)
   }
 
   it should "surface a subject-level compatibility override and report None for subjects without one" in {
