@@ -8,17 +8,48 @@ Principal Engineer: Scala 2.12, sbt plugin API, Confluent Schema Registry, Avro.
 
 ## Stack
 
-Scala 2.12.21, sbt 1.12.11, Java 17+, Confluent `kafka-schema-registry-client` 8.2.1, ScalaTest 3.2.19, mockito-scala 2.0.0, Testcontainers 1.21.3 (`it/test`).
+Scala 2.12 (sbt's Scala), sbt 1.x, Java 17+. Exact dependency versions in `build.sbt` / `project/Dependencies.scala`.
+
+## Source Layout
+
+```
+src/main/scala/org/galaxio/avro/    # plugin core + domain
+src/test/scala/org/galaxio/avro/    # unit tests (mock client via mockito-scala)
+it/src/test/scala/org/galaxio/avro/ # integration tests (Testcontainers — real Schema Registry + Kafka)
+src/sbt-test/                       # scripted e2e tests (sbt plugin test framework)
+```
 
 ## Commands
 
 ```bash
-sbt scalafmtAll scalafmtSbt                        # format
-sbt scalafmtCheckAll scalafmtSbtCheck compile test  # verify
-sbt compile test                                    # CI (unit only)
-sbt it/test                                         # integration (Docker)
-sbt scripted                                        # sbt plugin e2e
+pre-commit install                                         # install git hook (one-time)
+sbt scalafmtAll scalafmtSbt                               # format
+sbt scalafmtCheckAll scalafmtSbtCheck compile test        # verify
+sbt compile test                                          # CI (unit only)
+sbt it/test                                               # integration (Docker required)
+sbt scripted                                              # sbt plugin e2e
 ```
+
+## Public sbt Keys (compatibility-sensitive — never rename/retype/remove)
+
+### Task keys (`taskKey[Unit]`)
+- `schemaRegistryDownload` — download schemas from registry
+- `schemaRegistryRegister` — register schemas to registry
+- `schemaRegistryTestCompatibility` — check schema compatibility
+
+### Setting keys
+- `schemaRegistryUrl: String` — registry URL (required)
+- `schemaRegistryTargetFolder: File` — output dir for downloads
+- `schemaRegistrySubjects: Seq[RegistrySubject]`
+- `schemaRegistryRegistrations: Seq[RegistryRegistration]`
+- `schemaRegistryCacheSize: Int`
+- `schemaRegistryAuth: Option[SchemaRegistryAuth]`
+- `schemaRegistryProperties: Map[String, String]`
+- `schemaRegistrySubjectPatterns: Seq[String]`
+- `schemaRegistryIncremental: Boolean`
+- `schemaRegistryParallelism: Int`
+- `schemaRegistryRetries: Int`
+- `schemaRegistryResolveReferences: Boolean`
 
 ## Architecture
 
@@ -26,7 +57,7 @@ Each class owns one responsibility. `SchemaDownloaderPlugin` wires sbt tasks →
 
 ## Boundaries
 
-**Always:** format before commit, branch from `main`, keep commits semantic and green, preserve backward compat for published keys. `build.sbt`/`project/` = dependency truth, `.github/workflows/ci.yml` = CI truth.
+**Always:** format before commit (`pre-commit run --all-files` or `sbt scalafmtAll scalafmtSbt`), branch from `main`, keep commits semantic and green, preserve backward compat for published keys. `build.sbt`/`project/` = dependency truth, `.github/workflows/ci.yml` = CI truth.
 
 **Ask first:** new deps or major upgrades, changing public sbt key names/types/semantics, editing another repo, release/publish workflow changes.
 
