@@ -1,4 +1,4 @@
-Use AGENTS.md as the primary repository instruction file for this project.
+@AGENTS.md
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
