@@ -5,6 +5,7 @@ import io.confluent.kafka.schemaregistry.client.rest.entities.Schema
 import org.mockito.ArgumentMatchers.{anyBoolean, anyInt, anyString}
 import org.mockito.Mockito.when
 import org.mockito.MockitoSugar
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import sbt.util.Logger
@@ -80,8 +81,8 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result     = downloader.schemaSubjectToFile(RegistrySubject("fail-subject", 1))
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SchemaFetchFailed]
-    result.left.get.message should include("Connection refused")
+    result.left.value shouldBe a[DownloadError.SchemaFetchFailed]
+    result.left.value.message should include("Connection refused")
   }
 
   it should "return Left with SchemaFetchFailed when schema not found" in withTempDir { dir =>
@@ -93,7 +94,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result     = downloader.schemaSubjectToFile(RegistrySubject("missing", 1))
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SchemaFetchFailed]
+    result.left.value shouldBe a[DownloadError.SchemaFetchFailed]
   }
 
   it should "use correct file extension" in withTempDir { dir =>
@@ -154,8 +155,8 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result     = downloader.schemaSubjectToFile(RegistrySubject("a/b", 1))
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.InvalidSubjectName]
-    result.left.get.message should include("path separators")
+    result.left.value shouldBe a[DownloadError.InvalidSubjectName]
+    result.left.value.message should include("path separators")
   }
 
   it should "return Left with InvalidSubjectName for backslash" in withTempDir { dir =>
@@ -164,8 +165,8 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result     = downloader.schemaSubjectToFile(RegistrySubject("a\\b", 1))
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.InvalidSubjectName]
-    result.left.get.message should include("path separators")
+    result.left.value shouldBe a[DownloadError.InvalidSubjectName]
+    result.left.value.message should include("path separators")
   }
 
   it should "return Left with WriteError when output path is not writable" in withTempDir { dir =>
@@ -180,7 +181,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result     = downloader.schemaSubjectToFile(RegistrySubject("test", 1))
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.WriteError]
+    result.left.value shouldBe a[DownloadError.WriteError]
   }
 
   it should "be safe to call close multiple times" in withTempDir { dir =>
@@ -266,7 +267,7 @@ class DownloaderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result     = downloader.schemaSubjectToFile(RegistrySubject.latest("unknown-type"))
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.UnsupportedSchemaType]
+    result.left.value shouldBe a[DownloadError.UnsupportedSchemaType]
   }
 
   it should "download pinned schema with Protobuf type using .proto extension" in withTempDir { dir =>

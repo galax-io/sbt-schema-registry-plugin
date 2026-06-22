@@ -2,6 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import org.mockito.MockitoSugar
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -26,7 +27,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    val plan = result.right.get
+    val plan = result.value
     plan.subjects.map(_.name) should contain theSameElementsAs List(
       "com.myorg.User-value",
       "com.myorg.Order-value",
@@ -39,7 +40,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects shouldBe empty
+    result.value.subjects shouldBe empty
   }
 
   it should "return Left(InvalidPattern) for invalid regex" in {
@@ -48,7 +49,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.InvalidPattern]
+    result.left.value shouldBe a[DownloadError.InvalidPattern]
   }
 
   it should "fail-fast on invalid regex without calling getAllSubjects" in {
@@ -73,7 +74,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects shouldBe List(RegistrySubject.Latest("com.myorg.User-value"))
+    result.value.subjects shouldBe List(RegistrySubject.Latest("com.myorg.User-value"))
   }
 
   // --- Deduplication ---
@@ -86,7 +87,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    val plan = result.right.get
+    val plan = result.value
     plan.subjects should contain(RegistrySubject.Pinned("com.myorg.User-value", 3))
     plan.subjects.count(_.name == "com.myorg.User-value") shouldBe 1
   }
@@ -99,7 +100,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    val names = result.right.get.subjects.map(_.name)
+    val names = result.value.subjects.map(_.name)
     names should contain("com.myorg.Order-value")
   }
 
@@ -114,7 +115,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects.map(_.name) should contain theSameElementsAs List(
+    result.value.subjects.map(_.name) should contain theSameElementsAs List(
       "com.myorg.User-value",
       "internal.Audit-value",
     )
@@ -129,7 +130,7 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Right[_, _]]
-    val names = result.right.get.subjects.map(_.name)
+    val names = result.value.subjects.map(_.name)
     names.count(_ == "com.myorg.User-value") shouldBe 1
   }
 
@@ -161,6 +162,6 @@ class SubjectResolverSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectResolver.resolve(client, specs)
 
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SubjectListFailed]
+    result.left.value shouldBe a[DownloadError.SubjectListFailed]
   }
 }

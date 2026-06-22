@@ -30,15 +30,15 @@ trait SchemaRegistryContainerSuite extends BeforeAndAfterAll { self: Suite =>
   /** Identity-cache capacity for the spec-facing client (was hard-coded to 100 in every spec). */
   protected def clientCacheSize: Int = 100
 
-  @volatile private var network: Network               = _
-  @volatile private var kafka: ConfluentKafkaContainer = _
-  @volatile private var sr: JGenericContainer[_]       = _
+  @volatile private var network: Network               = null.asInstanceOf[Network]
+  @volatile private var kafka: ConfluentKafkaContainer = null.asInstanceOf[ConfluentKafkaContainer]
+  @volatile private var sr: JGenericContainer[_]       = null.asInstanceOf[JGenericContainer[_]]
 
   /** Base URL of the booted Schema Registry, e.g. `http://localhost:32785`. */
-  protected var registryUrl: String = _
+  protected var registryUrl: String = null.asInstanceOf[String]
 
   /** A client connected to [[registryUrl]]; usable from `registerSubjects()` and the tests. */
-  protected var registryClient: CachedSchemaRegistryClient = _
+  protected var registryClient: CachedSchemaRegistryClient = null.asInstanceOf[CachedSchemaRegistryClient]
 
   /** Override to seed subjects/fixtures once the registry and client are up. No-op by default. */
   protected def registerSubjects(): Unit = ()

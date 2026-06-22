@@ -3,6 +3,7 @@ package org.galaxio.avro
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import io.confluent.kafka.schemaregistry.client.rest.entities.{SchemaReference => ConfluentSchemaReference}
 import org.apache.avro.Schema
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import sbt.util.Logger
@@ -67,7 +68,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with SchemaReg
   it should "return Left with SchemaFetchFailed for missing subject" in withFixture { (_, downloader) =>
     val result = downloader.schemaSubjectToFile(RegistrySubject("does-not-exist", 1))
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SchemaFetchFailed]
+    result.left.value shouldBe a[DownloadError.SchemaFetchFailed]
   }
 
   it should "return Left with SchemaFetchFailed for missing version of existing subject" in withFixture { (_, downloader) =>
@@ -78,7 +79,7 @@ class DownloaderIntegrationSpec extends AnyFlatSpec with Matchers with SchemaReg
 
     val result = downloader.schemaSubjectToFile(RegistrySubject(subject, 99))
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SchemaFetchFailed]
+    result.left.value shouldBe a[DownloadError.SchemaFetchFailed]
   }
 
   it should "produce identical output files across two downloads" in withTempDir { dir =>

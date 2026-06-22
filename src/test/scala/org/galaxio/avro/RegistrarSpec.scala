@@ -5,6 +5,7 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import org.mockito.ArgumentMatchers.{any, eq => eqTo}
 import org.mockito.Mockito.when
 import org.mockito.MockitoSugar
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -67,7 +68,7 @@ class RegistrarSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     results should have size 2
     results(0) shouldBe Right(RegisteredSchema("sub1", 1))
     results(1) shouldBe a[Left[_, _]]
-    results(1).left.get shouldBe RegistryError.FileNotFound(f2)
+    results(1).left.value shouldBe RegistryError.FileNotFound(f2)
   }
 
   it should "handle empty registration list" in {
@@ -86,9 +87,9 @@ class RegistrarSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val results = Registrar.registerAll(client, List(RegistryRegistration("fail-sub", f)))
     results should have size 1
     results.head shouldBe a[Left[_, _]]
-    results.head.left.get shouldBe a[RegistryError.RegistrationFailed]
-    results.head.left.get.message should include("fail-sub")
-    results.head.left.get.message should include("Connection refused")
+    results.head.left.value shouldBe a[RegistryError.RegistrationFailed]
+    results.head.left.value.message should include("fail-sub")
+    results.head.left.value.message should include("Connection refused")
   }
 
   "Registrar.partitionResults" should "separate errors and successes" in {
@@ -115,52 +116,52 @@ class RegistrarSpec extends AnyFlatSpec with Matchers with MockitoSugar {
   "Registrar.buildParsedSchema" should "build Avro schema from valid content" in {
     val result = Registrar.buildParsedSchema("test", """{"type":"string"}""", SchemaType.Avro)
     result shouldBe a[Right[_, _]]
-    result.right.get.schemaType() shouldBe "AVRO"
+    result.value.schemaType() shouldBe "AVRO"
   }
 
   it should "return RegistrationFailed for invalid Avro content" in {
     val result = Registrar.buildParsedSchema("test", "not valid avro", SchemaType.Avro)
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[RegistryError.RegistrationFailed]
+    result.left.value shouldBe a[RegistryError.RegistrationFailed]
   }
 
   it should "return RegistrationFailed for Protobuf when provider not on classpath" in {
     val result = Registrar.buildParsedSchema("test", "syntax = \"proto3\";", SchemaType.Protobuf)
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[RegistryError.RegistrationFailed]
-    result.left.get.message should include("Schema provider not on classpath")
+    result.left.value shouldBe a[RegistryError.RegistrationFailed]
+    result.left.value.message should include("Schema provider not on classpath")
   }
 
   it should "return RegistrationFailed for Json when provider not on classpath" in {
     val result = Registrar.buildParsedSchema("test", """{"type":"object"}""", SchemaType.Json)
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[RegistryError.RegistrationFailed]
-    result.left.get.message should include("Schema provider not on classpath")
+    result.left.value shouldBe a[RegistryError.RegistrationFailed]
+    result.left.value.message should include("Schema provider not on classpath")
   }
 
   it should "build Avro schema with references" in {
     val refs   = List(SchemaReference("Base", "base-subject", 1))
     val result = Registrar.buildParsedSchema("test", """{"type":"string"}""", SchemaType.Avro, refs)
     result shouldBe a[Right[_, _]]
-    result.right.get.references() should have size 1
+    result.value.references() should have size 1
   }
 
   it should "be extension-agnostic — schema type is determined by the SchemaType parameter, not the file" in {
     val result = Registrar.buildParsedSchema("test", """{"type":"string"}""", SchemaType.Avro)
     result shouldBe a[Right[_, _]]
-    result.right.get.schemaType() shouldBe "AVRO"
+    result.value.schemaType() shouldBe "AVRO"
   }
 
   it should "include dependency name in error for missing Protobuf provider" in {
     val result = Registrar.buildParsedSchema("test", "syntax = \"proto3\";", SchemaType.Protobuf)
     result shouldBe a[Left[_, _]]
-    result.left.get.message should include("kafka-protobuf-provider")
+    result.left.value.message should include("kafka-protobuf-provider")
   }
 
   it should "include dependency name in error for missing JSON provider" in {
     val result = Registrar.buildParsedSchema("test", """{"type":"object"}""", SchemaType.Json)
     result shouldBe a[Left[_, _]]
-    result.left.get.message should include("kafka-json-schema-provider")
+    result.left.value.message should include("kafka-json-schema-provider")
   }
 
   "Registrar.registerAll" should "pass references from RegistryRegistration to client" in {

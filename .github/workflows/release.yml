@@ -39,10 +39,11 @@ jobs:
 
       - uses: ./.github/actions/sbt-setup
 
-      - name: Compile & test
+      - name: Compile & test (both axes)
         # Integration tests (it/test) and scripted tests run in ci.yml on PRs
         # before merge — no need to re-run with Docker during release.
-        run: sbt compile test
+        # `+` cross-builds across crossScalaVersions (2.12 -> sbt 1.x, 3 -> sbt 2.x).
+        run: sbt +compile +test
 
       - name: Publish to Maven Central via sbt-ci-release
         env:
@@ -50,6 +51,8 @@ jobs:
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        # `ci-release` runs `+publishSigned`, so a single tag cross-publishes BOTH
+        # artifacts under one version: _2.12_1.0 (sbt 1.x) and _sbt2_3 (sbt 2.x).
         run: sbt ci-release
 
       - name: Generate release notes

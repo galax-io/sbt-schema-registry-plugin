@@ -5,6 +5,7 @@ import io.confluent.kafka.schemaregistry.client.{SchemaMetadata, SchemaRegistryC
 import org.mockito.ArgumentMatchers.{anyBoolean, anyInt, anyString}
 import org.mockito.Mockito.{verify, when}
 import org.mockito.MockitoSugar
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import sbt.util.Logger
@@ -108,13 +109,13 @@ class DownloadOrchestratorSpec extends AnyFlatSpec with Matchers with MockitoSug
   it should "return Left for an out-of-range parallelism without touching the registry" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     val cfg    = config(dir, Seq(RegistrySubject("x", 1))).copy(parallelism = 99)
-    DownloadOrchestrator.run(client, cfg, testLogger).left.get shouldBe a[DownloadError.InvalidParallelism]
+    DownloadOrchestrator.run(client, cfg, testLogger).left.value shouldBe a[DownloadError.InvalidParallelism]
   }
 
   it should "return Left for an out-of-range retry count" in withTempDir { dir =>
     val client = mock[SchemaRegistryClient]
     val cfg    = config(dir, Seq(RegistrySubject("x", 1))).copy(retries = -1)
-    DownloadOrchestrator.run(client, cfg, testLogger).left.get shouldBe a[DownloadError.InvalidRetryConfig]
+    DownloadOrchestrator.run(client, cfg, testLogger).left.value shouldBe a[DownloadError.InvalidRetryConfig]
   }
 
   it should "fail fast with Left when a subject pattern is an invalid regex" in withTempDir { dir =>
@@ -124,7 +125,7 @@ class DownloadOrchestratorSpec extends AnyFlatSpec with Matchers with MockitoSug
     val result = DownloadOrchestrator.run(client, cfg, testLogger)
 
     result.isLeft shouldBe true
-    result.left.get shouldBe a[DownloadError.InvalidPattern]
+    result.left.value shouldBe a[DownloadError.InvalidPattern]
   }
 
   it should "download all subjects without touching the manifest when incremental is disabled" in withTempDir { dir =>

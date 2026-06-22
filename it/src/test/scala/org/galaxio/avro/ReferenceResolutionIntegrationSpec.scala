@@ -9,7 +9,7 @@ import sbt.util.Logger
 
 import java.nio.file.{Files, Path}
 import java.util.Collections
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /** End-to-end reference resolution against a real Confluent Schema Registry.
   *
