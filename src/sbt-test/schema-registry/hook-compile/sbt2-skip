@@ -1,0 +1,10 @@
+# Gated off the sbt 2.x scripted axis (CI reads this marker; see .github/workflows/ci.yml).
+#
+# This fixture overrides `Compile / compile := (Compile / compile).dependsOn(...).value`.
+# sbt 2.x caches all tasks by default and refuses to redefine `compile` because its
+# CompileAnalysis result has no sjsonnew.JsonFormat ("opt out ... as foo := Def.uncached(...)").
+# The user-side fix is `Def.uncached(...)`, which is sbt-2-only and cannot live in a shared
+# fixture build.sbt that must also evaluate under sbt 1.x.
+#
+# The cross-axis-safe "run download before compile" pattern is covered by the hook-source-generators
+# fixture (`Compile / sourceGenerators`), which runs on both axes. This fixture stays sbt-1-only.

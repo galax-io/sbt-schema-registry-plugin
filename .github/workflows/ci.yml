@@ -96,10 +96,12 @@ jobs:
         # hook-source-generators are intentional — they prove the plugin
         # correctly fails the build when the registry is unreachable.
         #
-        # sbt-2 axis: per-fixture gating is auto-detected — any fixture whose
-        # project/plugins.sbt adds an external sbt plugin (anything other than this
-        # plugin, e.g. download-success -> sbt-avrohugger 2.17.0) is skipped until
-        # that plugin ships an sbt-2 build. All other fixtures run on both axes.
+        # sbt-2 axis: per-fixture gating. A fixture is skipped on sbt 2.x if either
+        #   (a) it contains an `sbt2-skip` marker file (an sbt-2-incompatible build pattern,
+        #       e.g. overriding `Compile / compile` which needs Def.uncached on sbt 2), or
+        #   (b) its project/plugins.sbt adds an external sbt plugin other than this one
+        #       (e.g. download-success -> sbt-avrohugger 2.17.0) with no sbt-2 build yet.
+        # All other fixtures run on both axes.
         run: |
           set -euo pipefail
           if [ "${{ matrix.scala }}" = "2.12.21" ]; then
@@ -107,6 +109,10 @@ jobs:
           else
             FIXTURES=$(for d in src/sbt-test/schema-registry/*/; do
               n=$(basename "$d")
+              if [ -f "${d}sbt2-skip" ]; then
+                echo "skip sbt-2 scripted: $n (sbt2-skip marker)" >&2
+                continue
+              fi
               pf="${d}project/plugins.sbt"
               ext=""
               if [ -f "$pf" ]; then

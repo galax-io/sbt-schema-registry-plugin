@@ -1,0 +1,5 @@
+# Gated off the sbt 2.x scripted axis (CI reads this marker; see .github/workflows/ci.yml).
+#
+# Same reason as hook-compile: overrides `Compile / compile := (Compile / compile).dependsOn(...).value`,
+# which sbt 2.x rejects (CompileAnalysis has no JsonFormat; needs Def.uncached, sbt-2-only). The
+# cross-axis-safe hook is covered by hook-source-generators. This fixture stays sbt-1-only.
