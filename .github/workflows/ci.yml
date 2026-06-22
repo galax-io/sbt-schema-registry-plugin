@@ -31,35 +31,52 @@ jobs:
       - run: sbt scalafmtCheckAll scalafmtSbtCheck
 
   test:
-    name: Test
+    name: Test (Scala ${{ matrix.scala }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # 2.12.21 -> sbt 1.x artifact (_2.12_1.0); 3.8.4 -> sbt 2.x artifact (_sbt2_3)
+        scala: ['2.12.21', '3.8.4']
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
       - name: Compile
-        run: sbt compile
+        run: sbt "++${{ matrix.scala }}" compile
       - name: Test
-        run: sbt test
+        run: sbt "++${{ matrix.scala }}" test
 
   it-test:
-    name: Integration Test
+    name: Integration Test (Scala ${{ matrix.scala }})
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.21', '3.8.4']
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
       - name: Integration Test
-        run: sbt it/test
+        run: sbt "++${{ matrix.scala }}" it/test
 
   scripted:
-    name: Scripted (plugin e2e)
+    name: Scripted (sbt ${{ matrix.sbt }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scala: '2.12.21'
+            sbt: '1.x'
+          - scala: '3.8.4'
+            sbt: '2.x'
     env:
       # Testcontainers boots from sbt's meta-build classloader, where strategy
       # ServiceLoader discovery finds no socket strategy. Point it at the daemon
@@ -75,4 +92,32 @@ jobs:
         # [error] lines in the log from download-failure, hook-compile, and
         # hook-source-generators are intentional — they prove the plugin
         # correctly fails the build when the registry is unreachable.
-        run: sbt scripted
+        #
+        # sbt-2 axis: per-fixture gating is auto-detected — any fixture whose
+        # project/plugins.sbt adds an external sbt plugin (anything other than this
+        # plugin, e.g. download-success -> sbt-avrohugger 2.17.0) is skipped until
+        # that plugin ships an sbt-2 build. All other fixtures run on both axes.
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.scala }}" = "2.12.21" ]; then
+            sbt "++2.12.21" scripted
+          else
+            FIXTURES=$(for d in src/sbt-test/schema-registry/*/; do
+              n=$(basename "$d")
+              pf="${d}project/plugins.sbt"
+              ext=""
+              if [ -f "$pf" ]; then
+                ext=$(grep -E 'addSbtPlugin' "$pf" | grep -v 'sbt-schema-registry-plugin' || true)
+              fi
+              if [ -n "$ext" ]; then
+                echo "skip sbt-2 scripted: $n (external sbt-1-only plugin)" >&2
+                continue
+              fi
+              printf 'schema-registry/%s ' "$n"
+            done)
+            if [ -z "$FIXTURES" ]; then
+              echo "ERROR: all sbt-2 scripted fixtures were filtered out — gating misconfigured" >&2
+              exit 1
+            fi
+            sbt "++3.8.4" "scripted $FIXTURES"
+          fi

@@ -6,7 +6,7 @@ import sbt.util.Logger
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import java.util.{Collections, HashMap => JHashMap}
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 final class Downloader private[avro] (

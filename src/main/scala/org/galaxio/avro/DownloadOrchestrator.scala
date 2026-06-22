@@ -66,7 +66,7 @@ object DownloadOrchestrator {
     if (cfg.patterns.isEmpty) Right(cfg.subjects.toList)
     else {
       val specs =
-        cfg.subjects.map(s => SubjectSpec.Exact(s)).toList ++ cfg.patterns.map(SubjectSpec.Pattern).toList
+        cfg.subjects.map(s => SubjectSpec.Exact(s)).toList ++ cfg.patterns.map(p => SubjectSpec.Pattern(p)).toList
       SubjectResolver.resolve(client, specs).map { plan =>
         logger.info(s"Resolved ${plan.subjects.size} subject(s) from patterns")
         plan.subjects.toList

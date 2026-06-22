@@ -1,0 +1,12 @@
+# sbt 2.x caches all tasks by default; a cache hit returns the prior result and silently skips
+# side effects. schemaRegistryDownload is wrapped in Def.uncached so it must re-run every time.
+# Prove it: download, delete the output, download again with identical inputs — the file must
+# reappear. Were the second invocation served from the task cache, the file would stay deleted
+# and `exists` would fail (this is the regression this fixture guards). No-op-safe on sbt 1.x.
+# Invoke the bare root task (what users run) — it delegates to Compile / schemaRegistryDownload.
+> schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc
+$ delete src/main/avro/it.e2e.Order-1.avsc
+$ absent src/main/avro/it.e2e.Order-1.avsc
+> schemaRegistryDownload
+$ exists src/main/avro/it.e2e.Order-1.avsc

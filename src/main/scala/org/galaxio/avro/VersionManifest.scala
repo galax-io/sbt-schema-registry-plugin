@@ -3,7 +3,7 @@ package org.galaxio.avro
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 final case class VersionManifest(versions: Map[String, Int]) {

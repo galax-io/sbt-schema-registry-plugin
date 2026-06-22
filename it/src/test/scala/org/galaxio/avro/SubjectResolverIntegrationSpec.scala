@@ -2,6 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import org.apache.avro.Schema
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -29,7 +30,7 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Sche
     val result = SubjectResolver.resolve(registryClient, specs)
 
     result shouldBe a[Right[_, _]]
-    val names = result.right.get.subjects.map(_.name)
+    val names = result.value.subjects.map(_.name)
     names should contain theSameElementsAs List("com.myorg.User-value", "com.myorg.Order-value")
   }
 
@@ -46,7 +47,7 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Sche
     val result = SubjectResolver.resolve(registryClient, specs)
 
     result shouldBe a[Right[_, _]]
-    val plan    = result.right.get
+    val plan    = result.value
     val userSub = plan.subjects.find(_.name == "com.myorg.User-value")
     userSub shouldBe Some(RegistrySubject.Pinned("com.myorg.User-value", 1))
     plan.subjects.count(_.name == "com.myorg.User-value") shouldBe 1
@@ -66,7 +67,7 @@ class SubjectResolverIntegrationSpec extends AnyFlatSpec with Matchers with Sche
     val result = SubjectResolver.resolve(registryClient, specs)
 
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects.map(_.name) should contain theSameElementsAs List(
+    result.value.subjects.map(_.name) should contain theSameElementsAs List(
       "com.myorg.User-value",
       "internal.Audit-value",
     )

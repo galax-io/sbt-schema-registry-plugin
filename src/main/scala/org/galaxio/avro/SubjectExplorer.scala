@@ -2,7 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 /** Pure core for the list-subjects task: fetch + transform, no logging or side effects beyond the injected client. Presentation
@@ -20,7 +20,7 @@ object SubjectExplorer {
   ): Either[DownloadError, SubjectListing] =
     for {
       names <- Try(client.getAllSubjects.asScala.toList.sorted).toEither.left
-                 .map(DownloadError.SubjectListFailed)
+                 .map(e => DownloadError.SubjectListFailed(e))
       // Filter by name BEFORE per-subject fetch: avoids fetching versions/compatibility for subjects
       // the user excluded, and scopes fail-fast to the subjects actually requested.
       infos <- fetchInfos(client, filterNames(names, filter), parallelism)
@@ -38,7 +38,7 @@ object SubjectExplorer {
       parallelism: Int,
   ): Either[DownloadError, List[SubjectInfo]] =
     Try(BoundedParallel.traverse(names, parallelism)(fetchInfo(client, _))).toEither.left
-      .map(DownloadError.SubjectListFailed)
+      .map(e => DownloadError.SubjectListFailed(e))
       .flatMap(EitherOps.sequence)
 
   private def fetchInfo(

@@ -2,6 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import org.mockito.MockitoSugar
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -30,7 +31,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     val result = SubjectExplorer.listAll(client, None)
 
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects.map(_.name) shouldBe List("order-value", "payment-value", "user-value")
+    result.value.subjects.map(_.name) shouldBe List("order-value", "payment-value", "user-value")
   }
 
   it should "extract the version list for each subject" in {
@@ -39,7 +40,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     when(client.getAllVersions("a-value")).thenReturn(jints(1, 2, 3))
     when(client.getCompatibility("a-value")).thenThrow(new RuntimeException("40401"))
 
-    val info = SubjectExplorer.listAll(client, None).right.get.subjects.head
+    val info = SubjectExplorer.listAll(client, None).value.subjects.head
     info.versions shouldBe List(1, 2, 3)
     info.versionRange shouldBe "1..3"
   }
@@ -50,7 +51,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
     val result = SubjectExplorer.listAll(client, None)
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SubjectListFailed]
+    result.left.value shouldBe a[DownloadError.SubjectListFailed]
   }
 
   it should "fail-fast with SubjectVersionsFetchFailed naming the subject whose versions cannot be fetched" in {
@@ -62,7 +63,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
     val result = SubjectExplorer.listAll(client, None)
     result shouldBe a[Left[_, _]]
-    val err    = result.left.get
+    val err    = result.left.value
     err shouldBe a[DownloadError.SubjectVersionsFetchFailed]
     err.asInstanceOf[DownloadError.SubjectVersionsFetchFailed].subject shouldBe "bad-value"
   }
@@ -71,12 +72,12 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
   it should "filter case-insensitively by substring" in {
     val client = clientWith("user-value", "order-value", "payment-value")
-    SubjectExplorer.listAll(client, Some("ORDER")).right.get.subjects.map(_.name) shouldBe List("order-value")
+    SubjectExplorer.listAll(client, Some("ORDER")).value.subjects.map(_.name) shouldBe List("order-value")
   }
 
   it should "treat an empty filter as 'list all'" in {
     val client = clientWith("user-value", "order-value")
-    SubjectExplorer.listAll(client, Some("")).right.get.size shouldBe 2
+    SubjectExplorer.listAll(client, Some("")).value.size shouldBe 2
   }
 
   it should "not fetch or fail on subjects excluded by the filter" in {
@@ -89,7 +90,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
     val result = SubjectExplorer.listAll(client, Some("order"))
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects.map(_.name) shouldBe List("order-value")
+    result.value.subjects.map(_.name) shouldBe List("order-value")
     verify(client, org.mockito.Mockito.never()).getAllVersions("broken-value")
   }
 
@@ -97,7 +98,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
   it should "produce the same sorted result with parallelism > 1" in {
     val client = clientWith("user-value", "order-value", "payment-value")
-    SubjectExplorer.listAll(client, None, parallelism = 4).right.get.subjects.map(_.name) shouldBe
+    SubjectExplorer.listAll(client, None, parallelism = 4).value.subjects.map(_.name) shouldBe
       List("order-value", "payment-value", "user-value")
   }
 
@@ -110,7 +111,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
     val result = SubjectExplorer.listAll(client, None, parallelism = 4)
     result shouldBe a[Left[_, _]]
-    result.left.get shouldBe a[DownloadError.SubjectVersionsFetchFailed]
+    result.left.value shouldBe a[DownloadError.SubjectVersionsFetchFailed]
   }
 
   it should "report the first failing subject in sorted order when several fail (parallel)" in {
@@ -121,7 +122,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
     val result = SubjectExplorer.listAll(client, None, parallelism = 4)
     result shouldBe a[Left[_, _]]
-    result.left.get.asInstanceOf[DownloadError.SubjectVersionsFetchFailed].subject shouldBe "a-bad"
+    result.left.value.asInstanceOf[DownloadError.SubjectVersionsFetchFailed].subject shouldBe "a-bad"
   }
 
   // --- US3: versions + compatibility (debugging) ---
@@ -132,7 +133,7 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
     when(client.getAllVersions("c-value")).thenReturn(jints(1))
     when(client.getCompatibility("c-value")).thenReturn("BACKWARD")
 
-    SubjectExplorer.listAll(client, None).right.get.subjects.head.compatibility shouldBe Some("BACKWARD")
+    SubjectExplorer.listAll(client, None).value.subjects.head.compatibility shouldBe Some("BACKWARD")
   }
 
   it should "report None compatibility (best-effort) when getCompatibility throws, without failing the task" in {
@@ -143,6 +144,6 @@ class SubjectExplorerSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
     val result = SubjectExplorer.listAll(client, None)
     result shouldBe a[Right[_, _]]
-    result.right.get.subjects.head.compatibility shouldBe None
+    result.value.subjects.head.compatibility shouldBe None
   }
 }

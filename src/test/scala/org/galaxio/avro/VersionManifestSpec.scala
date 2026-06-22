@@ -1,5 +1,6 @@
 package org.galaxio.avro
 
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -64,7 +65,7 @@ class VersionManifestSpec extends AnyFlatSpec with Matchers {
   "fromJson" should "return Left for invalid JSON" in {
     val result = VersionManifest.fromJson("not json")
     result.isLeft shouldBe true
-    result.left.get shouldBe a[DownloadError.ManifestParseError]
+    result.left.value shouldBe a[DownloadError.ManifestParseError]
   }
 
   it should "return Left for empty string" in {

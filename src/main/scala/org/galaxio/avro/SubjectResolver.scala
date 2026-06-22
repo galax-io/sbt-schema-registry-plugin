@@ -2,7 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 object SubjectResolver {
@@ -43,7 +43,7 @@ object SubjectResolver {
       compiled: List[scala.util.matching.Regex],
   ): Either[DownloadError, List[RegistrySubject]] =
     Try(client.getAllSubjects.asScala.toList).toEither.left
-      .map(DownloadError.SubjectListFailed)
+      .map(e => DownloadError.SubjectListFailed(e))
       .map { allNames =>
         allNames
           .filter(name => compiled.exists(_.pattern.matcher(name).matches()))

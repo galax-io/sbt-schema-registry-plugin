@@ -2,7 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 object CompatibilityChecker {

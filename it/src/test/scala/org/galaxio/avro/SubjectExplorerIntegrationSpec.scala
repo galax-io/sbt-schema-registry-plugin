@@ -2,6 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import org.apache.avro.Schema
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -40,7 +41,7 @@ class SubjectExplorerIntegrationSpec extends AnyFlatSpec with Matchers with Sche
     val result = SubjectExplorer.listAll(registryClient, None)
 
     result shouldBe a[Right[_, _]]
-    val listing = result.right.get
+    val listing = result.value
     listing.subjects.map(_.name) shouldBe List(orderSubject, userSubject)
 
     // Real getAllVersions over the two registered Order versions and the single User version.
@@ -50,7 +51,7 @@ class SubjectExplorerIntegrationSpec extends AnyFlatSpec with Matchers with Sche
   }
 
   it should "surface a subject-level compatibility override and report None for subjects without one" in {
-    val listing = SubjectExplorer.listAll(registryClient, None).right.get
+    val listing = SubjectExplorer.listAll(registryClient, None).value
     listing.subjects.find(_.name == orderSubject).get.compatibility shouldBe Some("BACKWARD")
     listing.subjects.find(_.name == userSubject).get.compatibility shouldBe None
   }

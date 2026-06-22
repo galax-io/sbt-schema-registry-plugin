@@ -2,6 +2,7 @@ package org.galaxio.avro
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema
 import org.apache.avro.Schema
+import org.scalatest.EitherValues._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import sbt.util.Logger
@@ -62,7 +63,7 @@ class ParallelDownloaderIntegrationSpec extends AnyFlatSpec with Matchers with S
 
     val bySubject = results.map { case (s, r) => s.name -> r }.toMap
     bySubject("nonexistent-subject") shouldBe a[Left[_, _]]
-    bySubject("nonexistent-subject").left.get shouldBe a[DownloadError.SchemaFetchFailed]
+    bySubject("nonexistent-subject").left.value shouldBe a[DownloadError.SchemaFetchFailed]
     bySubject("test-subject-1") shouldBe a[Right[_, _]]
     bySubject("test-subject-3") shouldBe a[Right[_, _]]
 

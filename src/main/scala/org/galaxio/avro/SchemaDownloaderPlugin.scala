@@ -3,6 +3,7 @@ package org.galaxio.avro
 import _root_.io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import sbt.*
 import Keys.*
+import PluginCompat._ // provides Def.uncached (no-op shim on the sbt-1 axis; native on sbt-2)
 
 import scala.util.Using
 
@@ -63,7 +64,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
 
   override lazy val projectSettings: Seq[Setting[?]] = defaultSettings ++ Seq(
     schemaRegistryDownload                    := (Compile / schemaRegistryDownload).value,
-    Compile / schemaRegistryDownload          := {
+    Compile / schemaRegistryDownload          := Def.uncached {
       val logger      = streams.value.log
       val subjects    = schemaRegistrySubjects.value
       val patterns    = schemaRegistrySubjectPatterns.value
@@ -122,7 +123,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       }
     },
     schemaRegistryRegister                    := (Compile / schemaRegistryRegister).value,
-    Compile / schemaRegistryRegister          := {
+    Compile / schemaRegistryRegister          := Def.uncached {
       val logger        = streams.value.log
       val registrations = schemaRegistryRegistrations.value.toList
 
@@ -149,7 +150,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       }
     },
     schemaRegistryTestCompatibility           := (Compile / schemaRegistryTestCompatibility).value,
-    Compile / schemaRegistryTestCompatibility := {
+    Compile / schemaRegistryTestCompatibility := Def.uncached {
       val logger        = streams.value.log
       val registrations = schemaRegistryRegistrations.value.toList
 
@@ -177,7 +178,7 @@ object SchemaDownloaderPlugin extends AutoPlugin {
       }
     },
     schemaRegistryListSubjects                := (Compile / schemaRegistryListSubjects).value,
-    Compile / schemaRegistryListSubjects      := {
+    Compile / schemaRegistryListSubjects      := Def.uncached {
       val logger      = streams.value.log
       val filter      = schemaRegistrySubjectFilter.value
       val parallelism = schemaRegistryParallelism.value
