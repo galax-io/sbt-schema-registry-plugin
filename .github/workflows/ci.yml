@@ -68,7 +68,10 @@ jobs:
   scripted:
     name: Scripted (sbt ${{ matrix.sbt }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Each fixture boots its own Kafka + Schema Registry containers (~45s each) across ~27 fixtures;
+    # the sbt-2 leg also compiles fixture metabuilds with Scala 3. 20 min is too tight once the
+    # suite runs per-axis. (Follow-up: shard fixtures across parallel jobs to cut wall-clock.)
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
