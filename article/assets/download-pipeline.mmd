@@ -1,0 +1,6 @@
+flowchart LR
+  S["subjects + patterns"] --> W["expand wildcards"]
+  W --> R["resolve references"]
+  R --> I["skip unchanged"]
+  I --> P["fetch in parallel + retries"]
+  P --> F["schemas on disk"]

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1204 120" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5568"/>
+    </marker>
+  </defs>
+
+  <!-- boxes -->
+  <rect x="8"    y="30" width="168" height="60" rx="8" fill="#e8eef9" stroke="#4a5568" stroke-width="1.5"/>
+  <rect x="212"  y="30" width="168" height="60" rx="8" fill="#f4f6f8" stroke="#4a5568" stroke-width="1.5"/>
+  <rect x="416"  y="30" width="168" height="60" rx="8" fill="#f4f6f8" stroke="#4a5568" stroke-width="1.5"/>
+  <rect x="620"  y="30" width="168" height="60" rx="8" fill="#f4f6f8" stroke="#4a5568" stroke-width="1.5"/>
+  <rect x="824"  y="30" width="168" height="60" rx="8" fill="#f4f6f8" stroke="#4a5568" stroke-width="1.5"/>
+  <rect x="1028" y="30" width="168" height="60" rx="8" fill="#e8eef9" stroke="#4a5568" stroke-width="1.5"/>
+
+  <!-- labels -->
+  <g fill="#1a202c" font-size="14" text-anchor="middle">
+    <text x="92"   y="65">subjects + patterns</text>
+    <text x="296"  y="65">expand wildcards</text>
+    <text x="500"  y="65">resolve references</text>
+    <text x="704"  y="65">skip unchanged</text>
+    <text x="908"  y="56">fetch in parallel</text>
+    <text x="908"  y="74">+ retries</text>
+    <text x="1112" y="65">schemas on disk</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#4a5568" stroke-width="1.5" marker-end="url(#arrow)">
+    <line x1="176"  y1="60" x2="210"  y2="60"/>
+    <line x1="380"  y1="60" x2="414"  y2="60"/>
+    <line x1="584"  y1="60" x2="618"  y2="60"/>
+    <line x1="788"  y1="60" x2="822"  y2="60"/>
+    <line x1="992"  y1="60" x2="1026" y2="60"/>
+  </g>
+</svg>
