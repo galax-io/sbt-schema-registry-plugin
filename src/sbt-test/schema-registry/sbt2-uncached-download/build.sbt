@@ -12,8 +12,8 @@ import org.galaxio.avro.RegistrySubject
 // served the result without running the body — exactly what Def.uncached must prevent.
 lazy val root = (project in file("."))
   .settings(
-    scalaVersion            := "2.12.21",
-    schemaRegistryUrl       := RegistryFixture.url,
+    scalaVersion              := "2.12.21",
+    schemaRegistryUrl         := RegistryFixture.url,
     schemaRegistryIncremental := false,
     schemaRegistrySubjects += RegistrySubject(RegistryFixture.subject, 1),
   )
