@@ -4,7 +4,7 @@ object Dependencies {
   private object Versions {
     val schReqClient     = "8.3.0"
     val scalatest        = "3.2.20"
-    val mockito          = "2.2.1"
+    val mockito          = "2.2.3"
     val testcontainers   = "1.21.4"
     val collectionCompat = "2.14.0"
   }
