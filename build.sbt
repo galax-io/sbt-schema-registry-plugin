@@ -6,7 +6,7 @@ import Dependencies.*
 // NOTE: these axis versions are bumped manually — scala-steward does not track plain vals.
 // `scala3` must match the Scala version the targeted sbt 2.x ships (see its release notes); bump both together.
 val scala212 = "2.12.21"
-val scala3   = "3.8.4" // the Scala 3 version sbt 2.0.0 is built against
+val scala3   = "3.9.0" // the Scala 3 version sbt 2.0.0 is built against
 
 val sbt1 = "1.12.12"
 val sbt2 = "2.0.0"
