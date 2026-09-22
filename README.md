@@ -25,10 +25,11 @@ addSbtPlugin("org.galaxio" % "sbt-schema-registry-plugin" % "<plugin-version>")
 | sbt version | Scala version | Plugin artifact                                    |
 |-------------|---------------|----------------------------------------------------|
 | 1.x         | 2.12.x        | `sbt-schema-registry-plugin_2.12_1.0`              |
+| 2.x         | 3.x           | `sbt-schema-registry-plugin_sbt2_3`                |
 
-The plugin is built as a standard sbt 1.x autoplugin and requires **Scala 2.12** (the Scala version used by sbt
-itself). It does **not** depend on the Scala version of your project — you can use it in a Scala 2.13 or Scala 3
-project without any changes.
+The plugin is cross-built for both sbt major lines, matching each line's own Scala version — Scala 2.12 for
+sbt 1.x, Scala 3 for sbt 2.x. It does **not** depend on the Scala version of your own project — you can use
+it in a Scala 2.12, 2.13, or Scala 3 project without any changes.
 
 ## Configuration
 
@@ -390,7 +391,7 @@ RegistrySubject("subject", 4)   // always downloads version 4
 
 ## Development
 
-Built with **sbt 1.12.11** on **Scala 2.12.21** (the Scala version sbt runs on). The build is split into two
+Built with **sbt 1.12.12** on **Scala 2.12.21** (the Scala version sbt runs on). The build is split into two
 modules: the plugin itself (root) and an `it` subproject that holds the Testcontainers-based integration tests.
 
 ```bash
