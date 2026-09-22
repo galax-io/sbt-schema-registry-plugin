@@ -70,14 +70,13 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
       "-Dplugin.version=" + version.value,
     ),
     scriptedBufferLog             := false,
-    // Binary-compatibility check against the latest published release -- the sbt-1/Scala-2.12
-    // axis only (_2.12_1.0, latest 1.8.0). The sbt-2/Scala-3 axis (_3_sbt2.0) has never been
-    // published, so there is no previous artifact to compare it against yet.
+    // Binary-compatibility check against the latest published release, on whichever
+    // cross-build axis is active -- both _2.12_1.0 and _sbt2_3 are published through 1.8.0.
     mimaPreviousArtifacts         := {
-      if (scalaBinaryVersion.value.startsWith("2."))
-        Set(organization.value % "sbt-schema-registry-plugin_2.12_1.0" % "1.8.0")
-      else
-        Set.empty
+      val artifactId =
+        if (scalaBinaryVersion.value.startsWith("2.")) "sbt-schema-registry-plugin_2.12_1.0"
+        else "sbt-schema-registry-plugin_sbt2_3"
+      Set(organization.value % artifactId % "1.8.0")
     },
   )
 
