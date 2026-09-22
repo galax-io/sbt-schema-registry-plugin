@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sbt-schema-registry-plugin
+  description: SBT plugin that downloads Avro schemas from a Confluent Schema Registry
+  annotations:
+    github.com/project-slug: galax-io/sbt-schema-registry-plugin
+spec:
+  type: library
+  lifecycle: production
+  owner: galaxio
