@@ -46,8 +46,14 @@ jobs:
       - uses: ./.github/actions/sbt-setup
       - name: Compile
         run: sbt "++${{ matrix.scala }}" compile
+      - name: Binary compatibility (MiMa)
+        run: sbt "++${{ matrix.scala }}" mimaReportBinaryIssues
       - name: Test
-        run: sbt "++${{ matrix.scala }}" test
+        run: sbt "++${{ matrix.scala }}" coverage test coverageReport coverageOff
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: false
 
   it-test:
     name: Integration Test (Scala ${{ matrix.scala }})
