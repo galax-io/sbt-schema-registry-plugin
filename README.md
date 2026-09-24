@@ -391,14 +391,17 @@ RegistrySubject("subject", 4)   // always downloads version 4
 
 ## Development
 
-Built with **sbt 1.12.12** on **Scala 2.12.21** (the Scala version sbt runs on). The build is split into two
-modules: the plugin itself (root) and an `it` subproject that holds the Testcontainers-based integration tests.
+Built with **sbt 2.0.9**, which needs **JDK 17** or newer. The build is a `projectMatrix` with two modules, each
+with one row per plugin axis: the plugin itself (`plugin/`; rows `sbtSchemaRegistryPlugin` for Scala 3.8.4 / sbt 2
+and `sbtSchemaRegistryPlugin2_12` for Scala 2.12.21 / sbt 1) and an `it` module (`it`, `it2_12`) that holds the
+Testcontainers-based integration tests. The rows still compile against sbt 1.12.12 and sbt 2.0.0 respectively, so
+the sbt versions plugin users need do not change.
 
 ```bash
-sbt scalafmtAll scalafmtSbt   # format
-sbt compile test              # compile + unit tests (no external services)
-sbt it/test                   # integration tests — spins up Schema Registry + Kafka, requires Docker
-sbt scripted                  # plugin e2e tests (download-success needs Docker)
+sbt scalafmtAll scalafmtSbt                 # format
+sbt +compile +test                          # compile + unit tests on both axes (no external services)
+sbt it/test it2_12/test                     # integration tests — spins up Schema Registry + Kafka, requires Docker
+sbt sbtSchemaRegistryPlugin2_12/scripted    # plugin e2e tests on sbt 1 (download-success needs Docker)
 ```
 
 `ci.yml` runs formatting, unit tests, integration tests, and scripted tests on every PR and on `main` /

@@ -1,7 +1,8 @@
 import Dependencies.*
 
-// Cross-build axes (one shared source tree, two published artifacts):
-//   sbt 1.x consumer -> Scala 2.12 -> pluginCrossBuild sbtVersion 1.12.13 -> artifact _2.12_1.0
+// Cross-build axes (one shared source tree under plugin/, one projectMatrix row per axis,
+// built from the sbt 2 launcher pinned in project/build.properties):
+//   sbt 1.x consumer -> Scala 2.12 -> pluginCrossBuild sbtVersion 1.12.12 -> artifact _2.12_1.0
 //   sbt 2.x consumer -> Scala 3    -> pluginCrossBuild sbtVersion 2.0.0   -> artifact _sbt2_3
 // NOTE: these axis versions are bumped manually — scala-steward does not track plain vals.
 // `scala3` must match the Scala version the targeted sbt 2.x ships (see its release notes); bump both together.
@@ -13,8 +14,8 @@ val sbt2 = "2.0.0"
 
 // Map the active Scala binary version to the sbt line it targets. Kept as a helper so the
 // plugin's pluginCrossBuild target and the it-module's util-logging version stay decoupled (D8).
-// Any Scala 2.x (incl. a future 2.13) routes to sbt 1.x and reuses the src/main/scala-2.12 PluginCompat
-// seam; adding 2.13-specific compat code would require a new src/main/scala-2.13 source tree.
+// Any Scala 2.x (incl. a future 2.13) routes to sbt 1.x and reuses the plugin/src/main/scala-2.12
+// PluginCompat seam; adding 2.13-specific compat code would require a new plugin/src/main/scala-2.13 source tree.
 def sbtLineFor(scalaBinVersion: String): String =
   if (scalaBinVersion.startsWith("2.")) sbt1 else sbt2
 
@@ -45,14 +46,21 @@ def scalacOptionsFor(scalaBinVersion: String): Seq[String] = {
 }
 
 lazy val commonSettings = Seq(
-  scalaVersion       := scala212,
-  crossScalaVersions := Seq(scala212, scala3),
-  scalacOptions      := scalacOptionsFor(scalaBinaryVersion.value),
+  scalacOptions := scalacOptionsFor(scalaBinaryVersion.value),
   // scala-collection-compat backports scala.jdk to 2.12 only; Scala 3 has it in the stdlib, so don't ship it there.
   libraryDependencies ++= (if (scalaBinaryVersion.value.startsWith("2.")) Seq(collectionCompat) else Seq.empty),
 )
 
-lazy val sbtSchemaRegistryPlugin = (project in file("."))
+// Aggregates both plugin rows so root `+compile` / `+test` cover both axes. `it` stays out, as before the
+// projectMatrix move: its Testcontainers suites need Docker and run explicitly (`it/test`, `it2_12/test`).
+lazy val root = (project in file("."))
+  .aggregate(sbtSchemaRegistryPlugin.projectRefs *)
+  .settings(
+    name           := "sbt-schema-registry-plugin-root",
+    publish / skip := true,
+  )
+
+lazy val sbtSchemaRegistryPlugin = (projectMatrix in file("plugin"))
   .enablePlugins(SbtPlugin)
   .settings(commonSettings)
   .settings(
@@ -65,6 +73,13 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
       scalatest    % Test,
       mockitoScala % Test,
     ),
+    // sbt 2 adds scala3-library at compile scope, while the sbt 1 launcher published it as provided (the
+    // consumer's sbt supplies it). Keep it provided so the _sbt2_3 POM does not change with the launcher.
+    libraryDependencies           := libraryDependencies.value.map { m =>
+      if (m.organization == scalaOrganization.value && m.name == "scala3-library" && m.configurations.isEmpty)
+        m % Provided
+      else m
+    },
     scriptedLaunchOpts ++= Seq(
       "-Xmx1024M",
       "-Dplugin.version=" + version.value,
@@ -79,8 +94,9 @@ lazy val sbtSchemaRegistryPlugin = (project in file("."))
       Set(organization.value % artifactId % "1.8.0")
     },
   )
+  .jvmPlatform(scalaVersions = Seq(scala3, scala212))
 
-lazy val it = (project in file("it"))
+lazy val it = (projectMatrix in file("it"))
   .dependsOn(sbtSchemaRegistryPlugin)
   .settings(commonSettings)
   .settings(
@@ -95,3 +111,4 @@ lazy val it = (project in file("it"))
       jsonSchemaProvider  % Test,
     ),
   )
+  .jvmPlatform(scalaVersions = Seq(scala3, scala212))

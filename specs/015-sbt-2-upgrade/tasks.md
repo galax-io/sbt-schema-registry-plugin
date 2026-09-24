@@ -26,7 +26,7 @@ is prepared (plan.md, "Delivery order").
 
 ## sbt-schema-registry-plugin
 
-- [ ] T-003 [repo:galax-io/sbt-schema-registry-plugin] [US2] Cross-build the plugin with projectMatrix from an sbt 2.0.9 launcher (`plugin/`, `build.sbt`, `project/build.properties`)
+- [x] T-003 [repo:galax-io/sbt-schema-registry-plugin] [US2] Cross-build the plugin with projectMatrix from an sbt 2.0.9 launcher (`plugin/`, `build.sbt`, `project/build.properties`)
   AC: The plugin sources and scripted tests live under `plugin/`, moved with `git mv`, and `build.sbt` defines a projectMatrix with `jvmPlatform(scalaVersions = Seq("3.8.4", "2.12.21"))`.
   AC: `project/build.properties` pins exactly `sbt.version=2.0.9`.
   AC: The `_2.12_1.0` artifact keeps Scala 2.12.21 and compiles against the same sbt 1 API as before, so the minimum sbt 1 version of plugin users stays the same.
