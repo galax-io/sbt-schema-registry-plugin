@@ -405,7 +405,31 @@ sbt sbtSchemaRegistryPlugin2_12/scripted    # plugin e2e tests on sbt 1 (downloa
 ```
 
 `ci.yml` runs formatting, unit tests, integration tests, and scripted tests on every PR and on `main` /
-`release/*`.
+`release/*`, one job per matrix row rather than `++` legs. MiMa blocks on both axes against 1.9.0, and on pull
+requests the shared `sbt-upgrade-parity` gate from gatling-picatinny checks that `_2.12_1.0` is identical to the
+base build and that `_sbt2_3` has no MiMa issues.
+
+### Scripted tests
+
+Scripted tests run on each axis's declared minimum and on the newest release of its sbt line: sbt 1.12.12 and
+1.13.0 for `sbtSchemaRegistryPlugin2_12`, and sbt 2.0.0 and 2.0.9 for `sbtSchemaRegistryPlugin`. Scripted defaults
+to the minimum; pick another version with `scriptedSbt`:
+
+```bash
+sbt "project sbtSchemaRegistryPlugin" 'set scriptedSbt := "2.0.9"' "scripted schema-registry/<fixture>"
+```
+
+The sbt 2 legs skip these fixtures, which run only on sbt 1:
+
+| Fixture               | Why it is skipped on sbt 2                                                               |
+|-----------------------|------------------------------------------------------------------------------------------|
+| `download-success`    | Its `project/plugins.sbt` adds an external plugin (sbt-avrohugger 2.17.0) with no sbt 2 build |
+| `hook-compile`        | `sbt2-skip` marker: overrides `Compile / compile`, which sbt 2 accepts only with `Def.uncached` |
+| `hook-empty-subjects` | `sbt2-skip` marker: same `Compile / compile` override as `hook-compile`                   |
+
+CI works this list out itself: it skips any fixture that has an `sbt2-skip` file, or whose `project/plugins.sbt`
+adds an sbt plugin other than this one. So a new fixture that adds an external plugin drops off the sbt 2 legs
+automatically; list it here too.
 
 ### Release process
 
