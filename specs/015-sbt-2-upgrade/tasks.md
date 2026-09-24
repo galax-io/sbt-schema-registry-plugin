@@ -33,7 +33,7 @@ is prepared (plan.md, "Delivery order").
   AC: The `_sbt2_3` artifact keeps its sbt 2.0.0 minimum when the matrix can express it; otherwise `README.md` states the new minimum.
   AC: When the projectMatrix layout cannot keep `_2.12_1.0` unchanged, the change instead keeps pluginCrossBuild on an sbt 1.13.0 launcher with the Scala 3 axis on sbt 2.0.9, and records why in `project/build.properties`.
   AC: The repository's own verification passes on both axes.
-- [ ] T-004 [repo:galax-io/sbt-schema-registry-plugin] [US2] Check both axes with MiMa 1.9.0, scripted legs and the parity gate (`build.sbt`, `.github/workflows/ci.yml`, `README.md`)
+- [x] T-004 [repo:galax-io/sbt-schema-registry-plugin] [US2] Check both axes with MiMa 1.9.0, scripted legs and the parity gate (`build.sbt`, `.github/workflows/ci.yml`, `README.md`)
   AC: `mimaPreviousArtifacts` moves from 1.8.0 to 1.9.0 on each axis that 1.9.0 was published for, and keeps the newest existing baseline on any other axis.
   AC: `.github/workflows/ci.yml` builds per-axis matrix subprojects instead of `++` legs, and MiMa stays blocking on both axes, with the sbt 2 axis checked by the sbt 2 MiMa plugin.
   AC: Scripted tests run on sbt 2.0.9 and on the declared sbt 2 minimum, and on sbt 1.13.0 and the current sbt 1 minimum; `README.md` documents the sbt 2 skip list for fixtures that add external plugins.
