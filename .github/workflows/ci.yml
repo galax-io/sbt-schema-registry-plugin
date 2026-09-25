@@ -156,9 +156,6 @@ jobs:
   parity:
     name: sbt upgrade parity
     # Builds this PR's base with its own launcher and its head with the pinned sbt 2.0.9 launcher:
-    # _2.12_1.0 must be identical to the base build, and _sbt2_3 must show zero MiMa issues.
+    # _2.12_1.0 must be identical to the base build, and _sbt2_3 must show zero MiMa issues against it.
     if: github.event_name == 'pull_request'
-    uses: galax-io/gatling-picatinny/.github/workflows/sbt-upgrade-parity.yml@4a4d8413b0a593927efc560198da3452fecee8cd
-    with:
-      mode: sbt-plugin
-      artifact-suffixes: '_2.12_1.0,_sbt2_3'
+    uses: ./.github/workflows/sbt-upgrade-parity.yml
