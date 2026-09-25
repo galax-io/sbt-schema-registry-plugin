@@ -31,50 +31,58 @@ jobs:
       - run: sbt scalafmtCheckAll scalafmtSbtCheck
 
   test:
-    name: Test (${{ matrix.project }})
+    name: Test (Scala ${{ matrix.scala }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        # One projectMatrix row per axis:
-        #   sbtSchemaRegistryPlugin2_12 -> Scala 2.12.21 -> sbt 1.x artifact (_2.12_1.0)
-        #   sbtSchemaRegistryPlugin     -> Scala 3.8.4   -> sbt 2.x artifact (_sbt2_3)
-        project: ['sbtSchemaRegistryPlugin2_12', 'sbtSchemaRegistryPlugin']
+        # One leg per axis, each on the launcher that builds it (project/build.properties):
+        #   2.12.21 -> sbt 1.x artifact (_2.12_1.0), on the pinned sbt 1.13.0 launcher
+        #   3.8.4   -> sbt 2.x artifact (_sbt2_3), on an sbt 2.0.9 launcher
+        include:
+          - scala: '2.12.21'
+            launcher: ''
+          - scala: '3.8.4'
+            launcher: '-Dsbt.version=2.0.9'
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
       - name: Compile
-        run: sbt "${{ matrix.project }}/compile"
+        run: sbt ${{ matrix.launcher }} "++${{ matrix.scala }}" compile
       - name: Binary compatibility (MiMa)
-        # Blocking on both axes, each row against its own 1.9.0 artifact (build.sbt), run by the
-        # sbt 2 build of sbt-mima-plugin that the sbt 2.0.9 launcher loads.
-        run: sbt "${{ matrix.project }}/mimaReportBinaryIssues"
+        # Blocking on both axes, each against its own 1.9.0 artifact (build.sbt); the Scala 3 leg is
+        # checked by the sbt 2 build of sbt-mima-plugin that the sbt 2.0.9 launcher loads.
+        run: sbt ${{ matrix.launcher }} "++${{ matrix.scala }}" mimaReportBinaryIssues
       - name: Test
-        run: sbt coverage "${{ matrix.project }}/test" "${{ matrix.project }}/coverageReport" coverageOff
+        run: sbt ${{ matrix.launcher }} "++${{ matrix.scala }}" coverage test coverageReport coverageOff
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v7
         with:
           fail_ci_if_error: false
 
   it-test:
-    name: Integration Test (${{ matrix.project }})
+    name: Integration Test (Scala ${{ matrix.scala }})
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        # it2_12 -> sbt 1.x axis; it -> sbt 2.x axis
-        project: ['it2_12', 'it']
+        # 2.12.21 -> sbt 1.x axis on the pinned launcher; 3.8.4 -> sbt 2.x axis on sbt 2.0.9
+        include:
+          - scala: '2.12.21'
+            launcher: ''
+          - scala: '3.8.4'
+            launcher: '-Dsbt.version=2.0.9'
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
       - name: Integration Test
-        run: sbt "${{ matrix.project }}/test"
+        run: sbt ${{ matrix.launcher }} "++${{ matrix.scala }}" it/test
 
   scripted:
     name: Scripted (sbt ${{ matrix.sbt }})
@@ -87,15 +95,20 @@ jobs:
       fail-fast: false
       matrix:
         # Each axis runs on its declared minimum (pluginCrossBuild / sbtVersion in build.sbt, which is
-        # also scripted's default) and on the newest release of its sbt line.
+        # also scripted's default) and on the newest release of its sbt line. `launcher` is the sbt
+        # that builds the axis (project/build.properties); `sbt` is the version scripted runs.
         include:
-          - project: 'sbtSchemaRegistryPlugin2_12'
+          - scala: '2.12.21'
+            launcher: ''
             sbt: '1.12.12'
-          - project: 'sbtSchemaRegistryPlugin2_12'
+          - scala: '2.12.21'
+            launcher: ''
             sbt: '1.13.0'
-          - project: 'sbtSchemaRegistryPlugin'
+          - scala: '3.8.4'
+            launcher: '-Dsbt.version=2.0.9'
             sbt: '2.0.0'
-          - project: 'sbtSchemaRegistryPlugin'
+          - scala: '3.8.4'
+            launcher: '-Dsbt.version=2.0.9'
             sbt: '2.0.9'
     env:
       # Testcontainers boots from sbt's meta-build classloader, where strategy
@@ -125,10 +138,10 @@ jobs:
           SET_SBT="set scriptedSbt := \"${{ matrix.sbt }}\""
           case "${{ matrix.sbt }}" in
             1.*)
-              sbt "project ${{ matrix.project }}" "$SET_SBT" scripted
+              sbt ${{ matrix.launcher }} "++${{ matrix.scala }}" "$SET_SBT" scripted
               ;;
             *)
-              FIXTURES=$(for d in plugin/src/sbt-test/schema-registry/*/; do
+              FIXTURES=$(for d in src/sbt-test/schema-registry/*/; do
                 n=$(basename "$d")
                 if [ -f "${d}sbt2-skip" ]; then
                   echo "skip sbt-2 scripted: $n (sbt2-skip marker)" >&2
@@ -149,13 +162,13 @@ jobs:
                 echo "ERROR: all sbt-2 scripted fixtures were filtered out — gating misconfigured" >&2
                 exit 1
               fi
-              sbt "project ${{ matrix.project }}" "$SET_SBT" "scripted $FIXTURES"
+              sbt ${{ matrix.launcher }} "++${{ matrix.scala }}" "$SET_SBT" "scripted $FIXTURES"
               ;;
           esac
 
   parity:
     name: sbt upgrade parity
-    # Builds this PR's base with its own launcher and its head with the pinned sbt 2.0.9 launcher:
+    # Builds this PR's base with its own launcher and its head with the pinned one (project/build.properties):
     # _2.12_1.0 must be identical to the base build, and _sbt2_3 must show zero MiMa issues.
     if: github.event_name == 'pull_request'
     uses: galax-io/gatling-picatinny/.github/workflows/sbt-upgrade-parity.yml@4a4d8413b0a593927efc560198da3452fecee8cd

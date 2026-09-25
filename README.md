@@ -391,32 +391,33 @@ RegistrySubject("subject", 4)   // always downloads version 4
 
 ## Development
 
-Built with **sbt 2.0.9**, which needs **JDK 17** or newer. The build is a `projectMatrix` with two modules, each
-with one row per plugin axis: the plugin itself (`plugin/`; rows `sbtSchemaRegistryPlugin` for Scala 3.8.4 / sbt 2
-and `sbtSchemaRegistryPlugin2_12` for Scala 2.12.21 / sbt 1) and an `it` module (`it`, `it2_12`) that holds the
-Testcontainers-based integration tests. The rows still compile against sbt 1.12.12 and sbt 2.0.0 respectively, so
-the sbt versions plugin users need do not change.
+Built with **sbt 1.13.0** (pluginCrossBuild), which builds the Scala 2.12.21 / sbt 1 axis (`_2.12_1.0`) exactly
+as before; the Scala 3.8.4 / sbt 2 axis (`_sbt2_3`) is built on an **sbt 2.0.9** launcher, which needs **JDK 17** or
+newer. `project/build.properties` records why the build stays on the sbt 1 line. The build has two modules: the
+plugin itself (root) and an `it` subproject that holds the Testcontainers-based integration tests. The axes still
+compile against sbt 1.12.12 and sbt 2.0.0 respectively, so the sbt versions plugin users need do not change.
 
 ```bash
-sbt scalafmtAll scalafmtSbt                 # format
-sbt +compile +test                          # compile + unit tests on both axes (no external services)
-sbt it/test it2_12/test                     # integration tests — spins up Schema Registry + Kafka, requires Docker
-sbt sbtSchemaRegistryPlugin2_12/scripted    # plugin e2e tests on sbt 1 (download-success needs Docker)
+sbt scalafmtAll scalafmtSbt                               # format
+sbt +compile +test                                        # compile + unit tests on both axes (no external services)
+sbt -Dsbt.version=2.0.9 "++3.8.4" compile test            # sbt 2 axis on its sbt 2.0.9 launcher
+sbt +it/test                                              # integration tests — spins up Schema Registry + Kafka, requires Docker
+sbt "++2.12.21" scripted                                  # plugin e2e tests on sbt 1 (download-success needs Docker)
 ```
 
 `ci.yml` runs formatting, unit tests, integration tests, and scripted tests on every PR and on `main` /
-`release/*`, one job per matrix row rather than `++` legs. MiMa blocks on both axes against 1.9.0, and on pull
+`release/*`, one job per axis, each on its own launcher. MiMa blocks on both axes against 1.9.0, and on pull
 requests the shared `sbt-upgrade-parity` gate from gatling-picatinny checks that `_2.12_1.0` is identical to the
 base build and that `_sbt2_3` has no MiMa issues.
 
 ### Scripted tests
 
 Scripted tests run on each axis's declared minimum and on the newest release of its sbt line: sbt 1.12.12 and
-1.13.0 for `sbtSchemaRegistryPlugin2_12`, and sbt 2.0.0 and 2.0.9 for `sbtSchemaRegistryPlugin`. Scripted defaults
-to the minimum; pick another version with `scriptedSbt`:
+1.13.0 for the Scala 2.12 axis, and sbt 2.0.0 and 2.0.9 for the Scala 3 axis. Scripted defaults to the minimum;
+pick another version with `scriptedSbt`:
 
 ```bash
-sbt "project sbtSchemaRegistryPlugin" 'set scriptedSbt := "2.0.9"' "scripted schema-registry/<fixture>"
+sbt -Dsbt.version=2.0.9 "++3.8.4" 'set scriptedSbt := "2.0.9"' "scripted schema-registry/<fixture>"
 ```
 
 The sbt 2 legs skip these fixtures, which run only on sbt 1:
