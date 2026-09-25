@@ -58,6 +58,9 @@ trait SchemaRegistryContainerSuite extends BeforeAndAfterAll { self: Suite =>
       sr.withExposedPorts(8081)
       sr.withEnv("SCHEMA_REGISTRY_HOST_NAME", "schema-registry")
       sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS", "PLAINTEXT://kafka:19092")
+      // The registry's default Kafka-store timeout is 500 ms; a busy CI runner exceeds it and a register call
+      // fails with "Register operation timed out; error code: 50002".
+      sr.withEnv("SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT_MS", "10000")
       sr.waitingFor(Wait.forHttp("/subjects").forStatusCode(200))
       sr.start()
 
