@@ -8,31 +8,31 @@ Principal Engineer: Scala 2.12, sbt plugin API, Confluent Schema Registry, Avro.
 
 ## Stack
 
-Cross-built from one source tree for two axes: **Scala 2.12 → sbt 1.x** (artifact `_2.12_1.0`) and **Scala 3.8.x → sbt 2.x** (artifact `_sbt2_3`). Built on an sbt 1.13.0 launcher, except the sbt-2 axis, which builds on sbt 2.0.9 (`-Dsbt.version=2.0.9`; why: `project/build.properties`); Java 17+. Axis mapping in `build.sbt` (`crossScalaVersions` + `pluginCrossBuild / sbtVersion`); dependency versions in `project/Dependencies.scala`. sbt-version-only API differences (e.g. `Def.uncached`) live behind `PluginCompat` in `src/main/scala-2.12` / `src/main/scala-3`; almost all code is shared in `src/main/scala`.
+Cross-built from one source tree for two axes: **Scala 2.12 → sbt 1.x** (artifact `_2.12_1.0`) and **Scala 3.8.x → sbt 2.x** (artifact `_sbt2_3`). Built from an sbt 2.0.9 launcher; Java 17+. Axis mapping in `build.sbt` (a `projectMatrix` with one row per Scala version + `pluginCrossBuild / sbtVersion`); dependency versions in `project/Dependencies.scala`. Row IDs: `sbtSchemaRegistryPlugin` / `it` (Scala 3) and `sbtSchemaRegistryPlugin2_12` / `it2_12` (Scala 2.12). sbt-version-only API differences (e.g. `Def.uncached`) live behind `PluginCompat` in `plugin/src/main/scala-2.12` / `plugin/src/main/scala-3`; almost all code is shared in `plugin/src/main/scala`.
 
 ## Source Layout
 
 ```
-src/main/scala/org/galaxio/avro/        # plugin core + domain (shared by both axes)
-src/main/scala-2.12/org/galaxio/avro/   # PluginCompat seam — sbt-1 axis (Def.uncached no-op)
-src/main/scala-3/org/galaxio/avro/      # PluginCompat seam — sbt-2 axis (Def.uncached native)
-src/test/scala/org/galaxio/avro/        # unit tests (mock client via mockito-scala)
-it/src/test/scala/org/galaxio/avro/     # integration tests (Testcontainers — real Schema Registry + Kafka)
-src/sbt-test/                           # scripted e2e tests (sbt plugin test framework)
+plugin/src/main/scala/org/galaxio/avro/        # plugin core + domain (shared by both axes)
+plugin/src/main/scala-2.12/org/galaxio/avro/   # PluginCompat seam — sbt-1 axis (Def.uncached no-op)
+plugin/src/main/scala-3/org/galaxio/avro/      # PluginCompat seam — sbt-2 axis (Def.uncached native)
+plugin/src/test/scala/org/galaxio/avro/        # unit tests (mock client via mockito-scala)
+it/src/test/scala/org/galaxio/avro/            # integration tests (Testcontainers — real Schema Registry + Kafka)
+plugin/src/sbt-test/                           # scripted e2e tests (sbt plugin test framework)
 ```
 
 ## Commands
 
 ```bash
-pre-commit install                                                       # install git hook (one-time)
-sbt scalafmtAll scalafmtSbt                                             # format
-sbt scalafmtCheckAll scalafmtSbtCheck +compile +test                    # verify both axes
-sbt +compile +test                                                      # CI unit, both axes
-sbt -Dsbt.version=2.0.9 "++3.8.4" compile test                          # sbt-2 / Scala-3 axis only, on its launcher
-sbt "++2.12.21" compile test                                            # sbt-1 / Scala-2.12 axis only
-sbt +it/test                                                            # integration both axes (Docker required)
-sbt "++2.12.21" scripted                                                # sbt-1 plugin e2e (all fixtures)
-sbt -Dsbt.version=2.0.9 "++3.8.4" "scripted schema-registry/<fixture>"  # sbt-2 e2e (skip sbt-1-only-plugin fixtures, e.g. download-success)
+pre-commit install                                               # install git hook (one-time)
+sbt scalafmtAll scalafmtSbt                                     # format
+sbt scalafmtCheckAll scalafmtSbtCheck +compile +test            # verify both axes
+sbt +compile +test                                              # CI unit, both axes
+sbt sbtSchemaRegistryPlugin/test                                # sbt-2 / Scala-3 axis only
+sbt sbtSchemaRegistryPlugin2_12/test                            # sbt-1 / Scala-2.12 axis only
+sbt it/test it2_12/test                                         # integration both axes (Docker required)
+sbt sbtSchemaRegistryPlugin2_12/scripted                        # sbt-1 plugin e2e (all fixtures)
+sbt "sbtSchemaRegistryPlugin/scripted schema-registry/<fixture>" # sbt-2 e2e (skip sbt-1-only-plugin fixtures, e.g. download-success)
 ```
 
 `.sbtopts` passes `--server`: sbt 2's default thin client would read `sbt a b c` as a single command line.
