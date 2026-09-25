@@ -2,7 +2,7 @@ import Dependencies.*
 
 // Cross-build axes (one shared source tree under plugin/, one projectMatrix row per axis,
 // built from the sbt 2 launcher pinned in project/build.properties):
-//   sbt 1.x consumer -> Scala 2.12 -> pluginCrossBuild sbtVersion 1.12.12 -> artifact _2.12_1.0
+//   sbt 1.x consumer -> Scala 2.12 -> pluginCrossBuild sbtVersion 1.12.15 -> artifact _2.12_1.0
 //   sbt 2.x consumer -> Scala 3    -> pluginCrossBuild sbtVersion 2.0.0   -> artifact _sbt2_3
 // NOTE: these axis versions are bumped manually — scala-steward does not track plain vals.
 // `scala3` must match the Scala version the targeted sbt 2.x ships (see its release notes); bump both together.
