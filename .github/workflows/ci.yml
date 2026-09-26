@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: ./.github/actions/sbt-setup
       - run: sbt scalafmtCheckAll scalafmtSbtCheck
 
@@ -42,7 +42,7 @@ jobs:
         #   sbtSchemaRegistryPlugin     -> Scala 3.8.4   -> sbt 2.x artifact (_sbt2_3)
         project: ['sbtSchemaRegistryPlugin2_12', 'sbtSchemaRegistryPlugin']
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
@@ -69,7 +69,7 @@ jobs:
         # it2_12 -> sbt 1.x axis; it -> sbt 2.x axis
         project: ['it2_12', 'it']
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
@@ -103,7 +103,7 @@ jobs:
       # explicitly via the env strategy (which needs no ServiceLoader).
       DOCKER_HOST: unix:///var/run/docker.sock
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - uses: ./.github/actions/sbt-setup
