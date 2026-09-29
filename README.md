@@ -405,9 +405,10 @@ sbt sbtSchemaRegistryPlugin2_12/scripted    # plugin e2e tests on sbt 1 (downloa
 ```
 
 `ci.yml` runs formatting, unit tests, integration tests, and scripted tests on every PR and on `main` /
-`release/*`, one job per matrix row rather than `++` legs. MiMa blocks on both axes against 1.9.0, and on pull
-requests the shared `sbt-upgrade-parity` gate from gatling-picatinny checks that `_2.12_1.0` is identical to the
-base build and that `_sbt2_3` has no MiMa issues.
+`release/*`, one job per matrix row rather than `++` legs. MiMa blocks on both axes against 1.9.0, and on a pull
+request that changes `sbt.version` the `sbt-upgrade-parity` gate (this repository's copy of the one in
+gatling-picatinny) checks that `_2.12_1.0` is identical to the base build and that `_sbt2_3` has no MiMa issues.
+Any other pull request skips the gate with a notice.
 
 ### Scripted tests
 
