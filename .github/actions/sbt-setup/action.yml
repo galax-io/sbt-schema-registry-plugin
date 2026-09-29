@@ -14,6 +14,8 @@ runs:
         java-version: ${{ inputs.java-version }}
         cache: sbt
     - uses: sbt/setup-sbt@v1
+      with:
+        disk-cache: false # FR-007: never restore the sbt 2 task cache
     - uses: coursier/cache-action@v8
     - uses: actions/cache@v5
       with:
