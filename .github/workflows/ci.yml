@@ -30,6 +30,16 @@ jobs:
       - uses: ./.github/actions/sbt-setup
       - run: sbt scalafmtCheckAll scalafmtSbtCheck
 
+  workflow-scripts:
+    name: Workflow scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # The parity gate is self-contained, so its scope decision (does this PR upgrade sbt?) is
+      # tested by running the block the workflow marks against fixture build.properties trees.
+      - run: scripts/test-sbt-upgrade-parity-scope.sh
+
   test:
     name: Test (${{ matrix.project }})
     runs-on: ubuntu-24.04
@@ -157,5 +167,6 @@ jobs:
     name: sbt upgrade parity
     # Builds this PR's base with its own launcher and its head with the pinned sbt 2.0.9 launcher:
     # _2.12_1.0 must be identical to the base build, and _sbt2_3 must show zero MiMa issues against it.
+    # Only a PR that changes sbt.version is compared; any other PR skips the gate with a notice.
     if: github.event_name == 'pull_request'
     uses: ./.github/workflows/sbt-upgrade-parity.yml
