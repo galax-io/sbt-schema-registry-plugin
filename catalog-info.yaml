@@ -5,7 +5,10 @@ metadata:
   description: SBT plugin that downloads Avro schemas from a Confluent Schema Registry
   annotations:
     github.com/project-slug: galax-io/sbt-schema-registry-plugin
+    galaxio.io/uses.spec-kit-galaxio-bootstrap: "process: created from the template, takes process updates via copier update"
 spec:
   type: library
   lifecycle: production
   owner: galaxio
+  dependsOn:
+    - component:default/spec-kit-galaxio-bootstrap
