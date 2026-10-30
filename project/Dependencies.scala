@@ -2,7 +2,7 @@ import sbt.*
 
 object Dependencies {
   private object Versions {
-    val schReqClient     = "8.3.2"
+    val schReqClient     = "8.4.0"
     val scalatest        = "3.2.20"
     val mockito          = "2.2.3"
     val testcontainers   = "1.21.4"
