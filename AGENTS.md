@@ -24,6 +24,8 @@ plugin/src/sbt-test/                           # scripted e2e tests (sbt plugin 
 ## Commands
 
 ```bash
+# install   sbt +update +Test/compile scalafmtCheckAll scalafmtSbtCheck sbtSchemaRegistryPlugin/mimaReportBinaryIssues sbtSchemaRegistryPlugin2_12/mimaReportBinaryIssues coverage +update coverageOff
+# test      sbt +compile +test
 pre-commit install                                               # install git hook (one-time)
 sbt scalafmtAll scalafmtSbt                                     # format
 sbt scalafmtCheckAll scalafmtSbtCheck +compile +test            # verify both axes
